@@ -25,6 +25,7 @@ docker buildx use sr-builder
 build_one() {
     platform="$1"
     suffix="$2"
+    jobs="$3"          # build parallelism; empty = all cores
     echo "==> Building for ${platform} (${suffix})"
     # The 'artifact' stage is FROM scratch and contains only the binary;
     # -o exports it to the host as $OUTDIR/streamripper.
@@ -32,6 +33,7 @@ build_one() {
         --platform "$platform" \
         -f "$DOCKERFILE" \
         --target artifact \
+        --build-arg "JOBS=${jobs}" \
         -o "type=local,dest=${OUTDIR}/_${suffix}" \
         .
     mv "${OUTDIR}/_${suffix}/streamripper" "${OUTDIR}/streamripper-linux-${suffix}"
@@ -39,8 +41,10 @@ build_one() {
     echo "==> Wrote ${OUTDIR}/streamripper-linux-${suffix}"
 }
 
-build_one linux/arm64 arm64
-build_one linux/amd64 amd64
+# arm64 builds natively here (fast, all cores); amd64 runs under QEMU
+# emulation where parallel cc1 can segfault, so build it single-threaded.
+build_one linux/arm64 arm64 ""
+build_one linux/amd64 amd64 1
 
 echo
 echo "Done:"
