@@ -223,8 +223,20 @@ convert_string_with_replacement
 
     giconv = g_iconv_open (to_codeset, from_codeset);
     if (giconv == (GIConv) -1) {
-	/* Not sure why this would happen */
-	debug_printf ("g_iconv_open returned zero\n");
+	/* iconv can't open this codeset pair.  This happens on musl's minimal
+	   iconv, which doesn't know some charset aliases that glibc does (e.g.
+	   the C-locale name "ANSI_X3.4-1968").  Without a fallback the string
+	   converts to empty -- which breaks filename generation, so no output
+	   file is written at all.  Copy the bytes through unchanged instead,
+	   which is correct when the data is ASCII or already UTF-8 (the usual
+	   case).  Caller frees *output_string with g_free(). */
+	debug_printf ("g_iconv_open (to=%s, from=%s) failed; "
+		      "passing bytes through unchanged\n",
+		      to_codeset, from_codeset);
+	*output_string = g_malloc (input_bytes + 1);
+	memcpy (*output_string, input_string, input_bytes);
+	(*output_string)[input_bytes] = 0;
+	*output_bytes = input_bytes;
 	return;
     }
 
