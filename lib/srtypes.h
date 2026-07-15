@@ -480,6 +480,8 @@ struct stream_prefs
                                         //  socket to
     char ext_cmd[SR_MAX_PATH];          // cmd to spawn for external metadata
     char useragent[MAX_USERAGENT_STR];	// optional, use a different useragent
+    int http10;				// use HTTP/1.0 instead of HTTP/1.1 for
+                                        //  servers that mishandle HTTP/1.1
     u_short relay_port;			// port to use for the relay server
 					//  GCS 3/30/07 change to u_short
     u_short max_port;			// highest port the relay server 

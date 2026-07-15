@@ -65,6 +65,7 @@ streamripper URL -r 8000
 | `-r [[ip:]port]` | Run a relay server (default port 8000) |
 | `-R num` | Max relay clients (`0` = unlimited) |
 | `-u useragent` | Use a custom User-Agent |
+| `--http10` | Use HTTP/1.0 (for servers that mishandle HTTP/1.1) |
 | `--ssl-verify` | Verify the TLS certificate for https streams |
 | `-m seconds` | Timeout before a stalled connection is dropped |
 

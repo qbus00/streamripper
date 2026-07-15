@@ -304,6 +304,7 @@ print_usage (FILE* stream)
     fprintf(stream, "      --quiet        - Don't print ripping status to console\n");
     fprintf(stream, "      --stderr       - Print ripping status to stderr (old behavior)\n");
     fprintf(stream, "      --debug        - Save debugging trace\n");
+    fprintf(stream, "      --http10       - Use HTTP/1.0 (for servers that mishandle HTTP/1.1)\n");
     fprintf(stream, "TLS opts (for https:// stream URLs):\n");
     fprintf(stream, "      --ssl-verify    - Verify the server's TLS certificate\n");
     fprintf(stream, "      --no-ssl-verify - Don't verify the TLS certificate (this is the default)\n");
@@ -524,6 +525,12 @@ parse_extended_options (STREAM_PREFS* prefs, char* rule)
     if (!strcmp(rule,"version")) {
 	printf("Streamripper %s\n", SRVERSION);
 	exit(0);
+    }
+
+    /* Connect using HTTP/1.0 (for servers that mishandle HTTP/1.1) */
+    if (!strcmp(rule,"http10")) {
+	prefs->http10 = 1;
+	return;
     }
 
     /* TLS/SSL options */

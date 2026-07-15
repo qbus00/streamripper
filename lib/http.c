@@ -99,7 +99,8 @@ http_sc_connect (RIP_MANAGER_INFO* rmi,
 	}
 
 	debug_printf("http_sc_connect(): calling http_construct_sc_request\n");
-	ret = http_construct_sc_request (url, proxyurl, headbuf, useragent);
+	ret = http_construct_sc_request (url, proxyurl, headbuf, useragent,
+					 rmi->prefs->http10);
 	if (ret != SR_SUCCESS) {
 	    return ret;
 	}
@@ -215,7 +216,7 @@ http_parse_url(const char *url, URLINFO *urlinfo)
 }
 
 error_code
-http_construct_sc_request(const char *url, const char* proxyurl, char *buffer, char *useragent)
+http_construct_sc_request(const char *url, const char* proxyurl, char *buffer, char *useragent, int http10)
 {
     int ret;
     URLINFO ui;
@@ -245,9 +246,11 @@ http_construct_sc_request(const char *url, const char* proxyurl, char *buffer, c
 	     useragent[0] ? useragent : "Streamripper/1.x");
 #endif
 
-    /* This is the header suggested Florian Stoehr */
+    /* This is the header suggested Florian Stoehr.  Some servers mishandle
+       HTTP/1.1 (e.g. chunked responses or ignoring Connection: close), so
+       --http10 lets the user fall back to HTTP/1.0. */
     snprintf(buffer, MAX_HEADER_LEN + MAX_HOST_LEN + SR_MAX_PATH,
-	     "GET %s HTTP/1.1\r\n"
+	     "GET %s HTTP/%s\r\n"
 	     "Accept: */*\r\n"
 	     "Cache-Control: no-cache\r\n"
 	     "User-Agent: %s\r\n"
@@ -255,6 +258,7 @@ http_construct_sc_request(const char *url, const char* proxyurl, char *buffer, c
 	     "Connection: close\r\n"
 	     "Host: %s:%d\r\n",
 	     myurl,
+	     http10 ? "1.0" : "1.1",
 	     useragent[0] ? useragent: "Streamripper/1.x",
 	     ui.host,
 	     ui.port);
