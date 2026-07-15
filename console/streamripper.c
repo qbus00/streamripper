@@ -304,6 +304,9 @@ print_usage (FILE* stream)
     fprintf(stream, "      --quiet        - Don't print ripping status to console\n");
     fprintf(stream, "      --stderr       - Print ripping status to stderr (old behavior)\n");
     fprintf(stream, "      --debug        - Save debugging trace\n");
+    fprintf(stream, "TLS opts (for https:// stream URLs):\n");
+    fprintf(stream, "      --ssl-verify    - Verify the server's TLS certificate\n");
+    fprintf(stream, "      --no-ssl-verify - Don't verify the TLS certificate (this is the default)\n");
     fprintf(stream, "ID3 opts (mp3/aac/nsv):  [The default behavior is adding ID3V2.3 only]\n");
     fprintf(stream, "      -i                           - Don't add any ID3 tags to output file\n");
     fprintf(stream, "      --with-id3v1                 - Add ID3V1 tags to output file\n");
@@ -521,6 +524,16 @@ parse_extended_options (STREAM_PREFS* prefs, char* rule)
     if (!strcmp(rule,"version")) {
 	printf("Streamripper %s\n", SRVERSION);
 	exit(0);
+    }
+
+    /* TLS/SSL options */
+    if (!strcmp(rule,"ssl-verify") || !strcmp(rule,"ssl_verify")) {
+	OPT_FLAG_SET (prefs->flags, OPT_SSL_VERIFY, 1);
+	return;
+    }
+    if (!strcmp(rule,"no-ssl-verify") || !strcmp(rule,"no_ssl_verify")) {
+	OPT_FLAG_SET (prefs->flags, OPT_SSL_VERIFY, 0);
+	return;
     }
 
     /* Logging options */

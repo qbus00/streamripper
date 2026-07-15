@@ -228,6 +228,8 @@ typedef struct HSOCKETst
 {
 	SOCKET	s;
 	BOOL	closed;
+	void	*ssl;		/* SSL* when TLS is active on this socket, else NULL */
+	void	*ssl_ctx;	/* SSL_CTX* owned by this socket, else NULL */
 } HSOCKET;
 
 /* 
@@ -261,6 +263,7 @@ typedef struct URLINFOst
     char host[MAX_HOST_LEN];
     char path[SR_MAX_PATH];
     u_short port;
+    int ssl;			/* 1 if the url scheme is https, else 0 */
     char username[MAX_URI_STRING];
     char password[MAX_URI_STRING];
 } URLINFO;

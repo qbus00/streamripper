@@ -47,6 +47,7 @@
 #define OPT_EXTERNAL_CMD	0x00004000	// use external command to get metadata?
 #define OPT_ADD_ID3V1		0x00008000	// Add ID3V1
 #define OPT_ADD_ID3V2		0x00010000	// Add ID3V2
+#define OPT_SSL_VERIFY		0x00020000	// verify TLS server cert (opt-in, off by default)
 
 #define OPT_FLAG_ISSET(flags, opt)	    ((flags & opt) > 0)
 // #define OPT_FLAG_SET(flags, opt)	    (flags =| opt)
@@ -67,6 +68,7 @@
 #define GET_EXTERNAL_CMD(flags)			(OPT_FLAG_ISSET(flags, OPT_EXTERNAL_CMD))
 #define GET_ADD_ID3V1(flags)			(OPT_FLAG_ISSET(flags, OPT_ADD_ID3V1))
 #define GET_ADD_ID3V2(flags)			(OPT_FLAG_ISSET(flags, OPT_ADD_ID3V2))
+#define GET_SSL_VERIFY(flags)			(OPT_FLAG_ISSET(flags, OPT_SSL_VERIFY))
 
 /* Public functions */
 char *rip_manager_get_error_str(int code);

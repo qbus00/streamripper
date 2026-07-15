@@ -58,18 +58,30 @@ http_sc_connect (RIP_MANAGER_INFO* rmi,
 {
     char headbuf[MAX_HEADER_LEN];
     URLINFO url_info;
+    URLINFO target_info;
     int ret;
 
     while (1) {
 	debug_printf ("***** URL = %s *****\n", url);
 	debug_printf("http_sc_connect(): calling http_parse_url\n");
+
+	/* Always parse the real stream url so we know its scheme (http/https). */
+	if ((ret = http_parse_url (url, &target_info)) != SR_SUCCESS) {
+	    return ret;
+	}
+
 	if (proxyurl) {
 	    debug_printf ("***** PROXY = %s *****\n", proxyurl);
 	    if ((ret = http_parse_url (proxyurl, &url_info)) != SR_SUCCESS) {
 		return ret;
 	    }
-	} else if ((ret = http_parse_url (url, &url_info)) != SR_SUCCESS) {
-	    return ret;
+	    /* https-through-proxy needs CONNECT tunneling, not yet supported. */
+	    if (target_info.ssl) {
+		debug_printf ("https over a proxy is not supported\n");
+		return SR_ERROR_INVALID_URL;
+	    }
+	} else {
+	    url_info = target_info;
 	}
 
 	debug_printf("http_sc_connect(): calling socklib_init\n");
@@ -77,9 +89,11 @@ http_sc_connect (RIP_MANAGER_INFO* rmi,
 	    return ret;
 
 	debug_printf ("http_sc_connect(): calling socklib_open"
-		      " host=%s, port=%d\n", url_info.host, url_info.port);
-	ret = socklib_open (sock, url_info.host, url_info.port, if_name, 
-			    rmi->prefs->timeout);
+		      " host=%s, port=%d ssl=%d\n", url_info.host,
+		      url_info.port, url_info.ssl);
+	ret = socklib_open (sock, url_info.host, url_info.port, if_name,
+			    rmi->prefs->timeout, url_info.ssl,
+			    GET_SSL_VERIFY (rmi->prefs->flags));
 	if (ret != SR_SUCCESS) {
 	    return ret;
 	}
@@ -151,10 +165,15 @@ http_parse_url(const char *url, URLINFO *urlinfo)
 
     debug_printf ("http_parse_url: %s\n", url);
 
-    /* if we have a proto, just skip it. should we care about 
-       the proto? like fail if it's not http? */
+    /* Detect the scheme.  https -> use TLS and default to port 443,
+       everything else (http, or no scheme) -> plaintext, default port 80. */
+    urlinfo->ssl = 0;
     s = strstr(url, "://");
-    if (s) url = s + strlen("://");
+    if (s) {
+	if ((s - url) == 5 && g_ascii_strncasecmp (url, "https", 5) == 0)
+	    urlinfo->ssl = 1;
+	url = s + strlen("://");
+    }
     memcpy(urlinfo->path, (void *)"/\0", 2);
 
     /* search for a login '@' token */
@@ -187,7 +206,7 @@ http_parse_url(const char *url, URLINFO *urlinfo)
 	ret -= 1;
     } else {
 	debug_printf ("Branch 2 (%s)\n", url);
-	urlinfo->port = 80;
+	urlinfo->port = urlinfo->ssl ? 443 : 80;
 	ret = sscanf(url, "%511[^/]/%252s", urlinfo->host, urlinfo->path+1);
     }
     if (ret < 1) return SR_ERROR_INVALID_URL;

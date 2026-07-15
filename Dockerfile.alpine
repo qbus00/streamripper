@@ -1,0 +1,63 @@
+# Build a fully-static streamripper (with https/TLS support) on Alpine/musl.
+#
+# The resulting binary links every third-party dependency statically, so it
+# has no shared-library requirements at runtime (musl-based single binary).
+#
+#   docker build -f Dockerfile.alpine --target artifact -o type=local,dest=dist .
+#   -> produces ./dist/streamripper
+#
+# The build arch follows the Docker daemon arch (arm64 under Colima on Apple
+# silicon). Pass --platform linux/arm64 explicitly to be sure.
+
+FROM alpine:3.20 AS build
+
+# NOTE: we deliberately do NOT install libogg-dev/libvorbis-dev: Alpine ships
+# only their shared libs, which would break the fully-static (-static) link.
+# ogg/vorbis (and libmad) are built statically from source below instead.
+RUN apk add --no-cache \
+        build-base \
+        cmake \
+        pkgconf \
+        automake libtool \
+        glib-dev glib-static \
+        openssl-dev openssl-libs-static \
+        pcre2-dev zlib-dev zlib-static \
+        gettext-dev gettext-static \
+        curl
+
+# libmad is not packaged in current Alpine, so build it statically from source.
+# Its 2004-era config.guess/config.sub predate aarch64, so refresh them from
+# automake, and drop the obsolete -fforce-mem flag that modern gcc rejects.
+RUN curl -fsSL https://downloads.sourceforge.net/mad/libmad-0.15.1b.tar.gz -o /tmp/libmad.tar.gz \
+ && cd /tmp && tar xzf libmad.tar.gz && cd libmad-0.15.1b \
+ && cp "$(ls /usr/share/automake-*/config.guess | head -1)" config.guess \
+ && cp "$(ls /usr/share/automake-*/config.sub   | head -1)" config.sub \
+ && sed -i '/-fforce-mem/d' configure \
+ && ./configure --enable-static --disable-shared --prefix=/usr \
+ && make -j"$(nproc)" && make install
+
+# libogg + libvorbis, static, from source (for ogg/vorbis stream support).
+RUN curl -fsSL https://downloads.xiph.org/releases/ogg/libogg-1.3.5.tar.gz -o /tmp/ogg.tar.gz \
+ && cd /tmp && tar xzf ogg.tar.gz && cd libogg-1.3.5 \
+ && ./configure --enable-static --disable-shared --prefix=/usr \
+ && make -j"$(nproc)" && make install \
+ && curl -fsSL https://downloads.xiph.org/releases/vorbis/libvorbis-1.3.7.tar.gz -o /tmp/vorbis.tar.gz \
+ && cd /tmp && tar xzf vorbis.tar.gz && cd libvorbis-1.3.7 \
+ && ./configure --enable-static --disable-shared --prefix=/usr \
+ && make -j"$(nproc)" && make install
+
+WORKDIR /src
+COPY . .
+
+RUN cmake -S . -B build \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DSTREAMRIPPER_STATIC=ON \
+        -DWITH_SSL=ON \
+ && cmake --build build --target streamripper -j"$(nproc)" \
+ && strip build/streamripper \
+ && file build/streamripper \
+ && (ldd build/streamripper || echo "not a dynamic executable (static OK)")
+
+# Export just the binary.
+FROM scratch AS artifact
+COPY --from=build /src/build/streamripper /streamripper

@@ -122,6 +122,12 @@ errors_init (void)
     SET_ERR_STR("SR_ERROR_CANT_PARSE_M3U",                      0x41);
     SET_ERR_STR("SR_ERROR_CANT_CREATE_SOCKET",                  0x42);
     SET_ERR_STR("SR_ERROR_CREATE_PIPE_FAILED",                  0x43);
+    SET_ERR_STR("SR_ERROR_ABORT_PIPE_SIGNALLED",                0x44);
+    SET_ERR_STR("Could not initialize TLS/SSL (OpenSSL) library", 0x45);
+    SET_ERR_STR("TLS handshake failed. The server certificate may be invalid;\n"
+		"retry without --ssl-verify to skip certificate verification.", 0x46);
+    SET_ERR_STR("This streamripper was built without TLS support, so https\n"
+		"streams cannot be opened. Rebuild with OpenSSL enabled.", 0x47);
 }
 
 char*
