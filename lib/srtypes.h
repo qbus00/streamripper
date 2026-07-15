@@ -368,6 +368,7 @@ struct writer
     Cbuf3_pointer    m_next_byte;
     Cbuf3_pointer    m_last_byte;
     FHANDLE          m_file;
+    void            *wav;	/* Wav_encoder* when writing .wav, else NULL */
     TRACK_INFO       m_ti;
 };
 
@@ -450,6 +451,7 @@ struct FILELIB_INFO_struct
     mchar m_cue_name[SR_MAX_PATH];
     mchar m_icy_name[SR_MAX_PATH];
     mchar* m_extension;
+    int m_wav_output;		/* 1 if decoding mp3 tracks to .wav */
     BOOL m_do_individual_tracks;
     mchar m_session_datebuf[DATEBUF_LEN];
     mchar m_stripped_icy_name[SR_MAX_PATH];
@@ -482,6 +484,7 @@ struct stream_prefs
     char useragent[MAX_USERAGENT_STR];	// optional, use a different useragent
     int http10;				// use HTTP/1.0 instead of HTTP/1.1 for
                                         //  servers that mishandle HTTP/1.1
+    int wav_output;			// decode mp3 tracks and write .wav files
     u_short relay_port;			// port to use for the relay server
 					//  GCS 3/30/07 change to u_short
     u_short max_port;			// highest port the relay server 

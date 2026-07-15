@@ -517,6 +517,7 @@ prefs_get_stream_defaults (STREAM_PREFS* prefs)
 	    OPT_INDIVIDUAL_TRACKS;
     strcpy(prefs->useragent, DEFAULT_USER_AGENT);
     prefs->http10 = 0;   /* default to HTTP/1.1 */
+    prefs->wav_output = 0;
 
     // Defaults for splitpoint - times are in ms
     prefs->sp_opt.xs = 1;

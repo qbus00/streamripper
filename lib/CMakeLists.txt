@@ -33,6 +33,7 @@ SET (STREAMRIPPER_LIB_SRC
 	threadlib.c threadlib.h
 	track_info.c track_info.h
 	utf8.c utf8.h
+	wav_output.c wav_output.h
 
 	charmaps.h
 	confw32.h

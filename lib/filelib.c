@@ -30,6 +30,7 @@
 #include "glib/gstdio.h"
 #include "rip_manager.h"
 #include "uce_dirent.h"
+#include "wav_output.h"
 
 #define TEMP_STR_LEN	(SR_MAX_PATH*2)
 
@@ -155,9 +156,20 @@ filelib_init (RIP_MANAGER_INFO* rmi,
     remove_trailing_periods (fli->m_stripped_icy_name);
     debug_printf ("  %s\n", fli->m_stripped_icy_name);
 
+    fli->m_wav_output = 0;
     switch (content_type) {
     case CONTENT_TYPE_MP3:
+#if !defined (WIN32)
+	/* --wav: decode mp3 tracks to PCM .wav (individual tracks only). */
+	if (rmi->prefs->wav_output && do_individual_tracks) {
+	    fli->m_extension = m_(".wav");
+	    fli->m_wav_output = 1;
+	} else {
+	    fli->m_extension = m_(".mp3");
+	}
+#else
 	fli->m_extension = m_(".mp3");
+#endif
 	break;
     case CONTENT_TYPE_NSV:
     case CONTENT_TYPE_ULTRAVOX:
@@ -268,7 +280,21 @@ filelib_start (RIP_MANAGER_INFO* rmi, Writer *writer, TRACK_INFO* ti)
 				  fnbase, fli->m_extension);
     }
     mstrcpy (fli->m_incomplete_filename, newfile);
-    return filelib_open_for_write (rmi, &writer->m_file, newfile);
+    writer->wav = NULL;
+    {
+	error_code ret = filelib_open_for_write (rmi, &writer->m_file, newfile);
+	if (ret != SR_SUCCESS)
+	    return ret;
+	if (fli->m_wav_output) {
+	    ret = wav_encoder_open (&writer->wav, writer->m_file);
+	    if (ret != SR_SUCCESS) {
+		debug_printf ("wav_encoder_open failed (%d); "
+			      "writing raw mp3 instead\n", ret);
+		writer->wav = NULL;
+	    }
+	}
+	return SR_SUCCESS;
+    }
 }
 
 error_code
@@ -302,6 +328,8 @@ error_code
 filelib_write_track (Writer *writer, char *buf, u_long size)
 {
     debug_printf ("filelib_write_track %p %u\n", buf, size);
+    if (writer->wav)
+	return wav_encoder_write (writer->wav, buf, size);
     return filelib_write (writer->m_file, buf, size);
 }
 
@@ -411,6 +439,10 @@ filelib_close (
 
     if (!fli->m_do_individual_tracks) {
 	return SR_SUCCESS;
+    }
+    if (writer->wav) {
+	wav_encoder_close (writer->wav, writer->m_file);
+	writer->wav = NULL;
     }
     close_file (&writer->m_file);
     return SR_SUCCESS;
