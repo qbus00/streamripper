@@ -122,6 +122,7 @@ filelib_init (RIP_MANAGER_INFO* rmi,
     memset(&fli->m_output_directory, 0, SR_MAX_PATH);
     fli->m_show_name[0] = 0;
     fli->m_do_show = do_show_file;
+    fli->m_no_cue = rmi->prefs->no_cue;
     fli->m_do_individual_tracks = do_individual_tracks;
     fli->m_track_no = 1;
     
@@ -306,7 +307,8 @@ filelib_write_cue (RIP_MANAGER_INFO* rmi, TRACK_INFO* ti, int secs)
     char buf2[MAX_TRACK_LEN];
 
     if (!fli->m_do_show) return SR_SUCCESS;
-    if (!fli->m_cue_file) return SR_SUCCESS;
+    if (fli->m_no_cue) return SR_SUCCESS;
+    if (fli->m_cue_file == INVALID_FHANDLE) return SR_SUCCESS;
 
     rc = snprintf (buf2, MAX_TRACK_LEN, "  TRACK %02d AUDIO\n", 
 		   fli->m_track_no++);
@@ -1324,8 +1326,8 @@ filelib_open_showfiles (RIP_MANAGER_INFO* rmi)
     g_free (new_dir);
     g_free (new_fnbase);
 
-    /* Open cue file, write header */
-    if (rmi->http_info.content_type != CONTENT_TYPE_OGG) {
+    /* Open cue file, write header (unless --no-cue was given) */
+    if (!fli->m_no_cue && rmi->http_info.content_type != CONTENT_TYPE_OGG) {
 	rc = filelib_open_for_write (rmi, &fli->m_cue_file, fli->m_cue_name);
 	if (rc != SR_SUCCESS) {
 	    fli->m_do_show = 0;

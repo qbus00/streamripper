@@ -452,6 +452,7 @@ struct FILELIB_INFO_struct
     mchar m_icy_name[SR_MAX_PATH];
     mchar* m_extension;
     int m_wav_output;		/* 1 if decoding mp3 tracks to .wav */
+    int m_no_cue;		/* 1 to suppress .cue sheet creation */
     BOOL m_do_individual_tracks;
     mchar m_session_datebuf[DATEBUF_LEN];
     mchar m_stripped_icy_name[SR_MAX_PATH];
@@ -485,6 +486,7 @@ struct stream_prefs
     int http10;				// use HTTP/1.0 instead of HTTP/1.1 for
                                         //  servers that mishandle HTTP/1.1
     int wav_output;			// decode mp3 tracks and write .wav files
+    int no_cue;				// don't create .cue sheet files
     u_short relay_port;			// port to use for the relay server
 					//  GCS 3/30/07 change to u_short
     u_short max_port;			// highest port the relay server 

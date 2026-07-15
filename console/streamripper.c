@@ -306,6 +306,7 @@ print_usage (FILE* stream)
     fprintf(stream, "      --debug        - Save debugging trace\n");
     fprintf(stream, "      --http10       - Use HTTP/1.0 (for servers that mishandle HTTP/1.1)\n");
     fprintf(stream, "      --wav          - Decode mp3 tracks and write .wav files\n");
+    fprintf(stream, "      --no-cue       - Don't write .cue sheet files\n");
     fprintf(stream, "TLS opts (for https:// stream URLs):\n");
     fprintf(stream, "      --ssl-verify    - Verify the server's TLS certificate\n");
     fprintf(stream, "      --no-ssl-verify - Don't verify the TLS certificate (this is the default)\n");
@@ -537,6 +538,12 @@ parse_extended_options (STREAM_PREFS* prefs, char* rule)
     /* Decode mp3 tracks and write .wav files */
     if (!strcmp(rule,"wav")) {
 	prefs->wav_output = 1;
+	return;
+    }
+
+    /* Don't create .cue sheet files */
+    if (!strcmp(rule,"no-cue") || !strcmp(rule,"no_cue")) {
+	prefs->no_cue = 1;
 	return;
     }
 

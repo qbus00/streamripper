@@ -285,6 +285,11 @@ Use the HTTP/1\&.0 protocol instead of HTTP/1\&.1 for the stream request\&. Usef
 Decode each ripped mp3 track and write it as a 16\-bit PCM WAV file instead of mp3\&. Applies to individual tracks from mp3 streams only (not to aac/ogg streams or single\-file/relay output)\&.
 .RE
 .PP
+\-\-no\-cue
+.RS 4
+Do not create \&.cue sheet files\&. Useful with single\-file output (\-a) when you only want the audio file\&.
+.RE
+.PP
 \-\-ssl\-verify
 .RS 4
 For https:// streams, verify the server\'s TLS certificate against the system trust store and check the hostname\&. This is OFF by default (https connections are encrypted but not verified)\&.
