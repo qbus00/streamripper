@@ -397,8 +397,14 @@ start_ripping (RIP_MANAGER_INFO* rmi)
     rmi->http_bitrate = rmi->http_info.icy_bitrate;
     rmi->detected_bitrate = -1;
     rmi->bitrate = -1;
-    strcpy (rmi->streamname, rmi->http_info.icy_name);
-    strcpy (rmi->server_name, rmi->http_info.server);
+    /* SECURITY: icy_name/server come straight from the (untrusted) HTTP
+       response and can be far longer than these destination buffers -- a
+       malicious or MITM'd server could otherwise overflow them.  Copy with
+       explicit bounds. */
+    snprintf (rmi->streamname, sizeof (rmi->streamname), "%s",
+	      rmi->http_info.icy_name);
+    snprintf (rmi->server_name, sizeof (rmi->server_name), "%s",
+	      rmi->http_info.server);
 
     /* Initialize file writing code. */
     ret = filelib_init
@@ -432,8 +438,11 @@ start_ripping (RIP_MANAGER_INFO* rmi)
 	}
     }
 
-    /* Allocate buffers for ripstream */
-    strcpy(rmi->no_meta_name, rmi->http_info.icy_name);
+    /* Allocate buffers for ripstream.
+       SECURITY: no_meta_name is only MAX_TRACK_LEN; icy_name (untrusted, from
+       the HTTP header) can be much longer, so bound the copy. */
+    snprintf(rmi->no_meta_name, sizeof(rmi->no_meta_name), "%s",
+	     rmi->http_info.icy_name);
     rmi->getbuffer = 0;
     ret = ripstream_init(rmi);
     if (ret != SR_SUCCESS) {

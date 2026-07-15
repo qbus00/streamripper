@@ -355,7 +355,11 @@ get_track_from_metadata (RIP_MANAGER_INFO* rmi, int size, char *newtrack)
     /* Default is no track info */
     *newtrack = 0;
 
-    if ((namebuf = malloc(size)) == NULL)
+    /* SECURITY: the metadata bytes come from the (untrusted) server and are
+       parsed below as a C string (g_str_has_prefix/g_strdup/strstr).  A
+       malicious block need not contain a NUL, so allocate one extra byte and
+       terminate it ourselves to prevent a heap over-read. */
+    if ((namebuf = malloc(size + 1)) == NULL)
 	return SR_ERROR_CANT_ALLOC_MEMORY;
 
     ret = ripstream_recvall (rmi, namebuf, size);
@@ -363,6 +367,7 @@ get_track_from_metadata (RIP_MANAGER_INFO* rmi, int size, char *newtrack)
 	free(namebuf);
 	return ret;
     }
+    namebuf[size] = 0;
 
     debug_printf ("METADATA TITLE\n");
     for (i=0; i<size; i++) {
