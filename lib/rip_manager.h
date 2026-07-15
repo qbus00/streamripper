@@ -23,7 +23,7 @@
 #include "errors.h"
 #include "sr_compat.h"
 
-#define SRVERSION	"1.65.0-alpha"
+#define SRVERSION	"1.65.0-https"
 
 #if defined (WIN32)
 #define SRPLATFORM      "windows"

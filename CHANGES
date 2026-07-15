@@ -1,3 +1,30 @@
+New for 1.65.0-https (HTTPS / self-contained fork)
+------------------------------------
+* Add HTTPS/TLS support for https:// stream URLs (via OpenSSL).  The scheme is
+  auto-detected (default port 443).  TLS certificate verification is OFF by
+  default; enable it with --ssl-verify (--no-ssl-verify restores the default).
+  https through an http proxy is not supported.
+* Add --http10 flag to send HTTP/1.0 requests, for servers that mishandle
+  HTTP/1.1.
+* Add --wav flag to decode mp3 tracks to 16-bit PCM WAV files (individual
+  tracks from mp3 streams only).
+* Add --no-cue flag to suppress .cue sheet creation.
+* Security fixes (verified with AddressSanitizer):
+  - Fix remote buffer overflows: the icy-name/server HTTP headers (untrusted,
+    up to 4 KB) were strcpy'd into smaller fixed buffers; use bounded copies.
+  - Fix a heap over-read when parsing ICY metadata that lacks a NUL byte.
+* Fix no-output on static musl builds when iconv can't open a charset alias
+  (e.g. the C-locale name ANSI_X3.4-1968); output-filename conversion failed
+  and no file was written.  Fall back to passing bytes through unchanged.
+* Build system: CMake with WITH_SSL (default on) and STREAMRIPPER_STATIC
+  options.  Self-contained builds -- fully static for Linux arm64/amd64 (musl)
+  and static third-party libs for macOS arm64.  See BUILDING.md, plus
+  build-linux.sh, build-macos.sh, and Dockerfile.alpine.
+* Fix build breakers on modern toolchains (CMake 4.x, AppleClang, musl):
+  cmake_minimum_required 2.6->3.5, define __UNIX__, __uint32_t->uint32_t,
+  add OGG/VORBIS/MAD include dirs, guard the wstreamripper install, and a
+  couple of AppleClang-as-error warnings.
+
 New for 1.65.0
 ------------------------------------
 * Fix discontinuities in ogg page numbers (#1392868)
