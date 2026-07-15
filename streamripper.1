@@ -16,7 +16,7 @@ streamripper \- rip shoutcast radio streams to mp3 files
 \fIstreamripper\fR URL [options]
 .sp
 .SH "DESCRIPTION"
-Streamripper records shoutcast and icecast compatible streams, in their native format\&. The following formats are supported: mp3, nsv, aac, and ogg\&. The meta data within the stream are interpreted to determine the beginning and end of each song, and stores the songs on your hard disk as individual files\&. In addition, streamripper includes a relay server for listening to the station while you are recording\&.
+Streamripper records shoutcast and icecast compatible streams, in their native format\&. The following formats are supported: mp3, nsv, aac, and ogg\&. The meta data within the stream are interpreted to determine the beginning and end of each song, and stores the songs on your hard disk as individual files\&. In addition, streamripper includes a relay server for listening to the station while you are recording\&. Both http:// and https:// stream URLs are supported; for https, TLS is negotiated automatically and certificate verification is off by default (see \-\-ssl\-verify)\&.
 .sp
 .SH "OPTIONS"
 .PP
@@ -273,6 +273,16 @@ This is a shorthand for the following combination of options: \-\-xs\-search\-wi
 \-\-xs2
 .RS 4
 Use capisce\'s new algorithm (Apr 2008) for silence detection\&.
+.RE
+.PP
+\-\-ssl\-verify
+.RS 4
+For https:// streams, verify the server\'s TLS certificate against the system trust store and check the hostname\&. This is OFF by default (https connections are encrypted but not verified)\&.
+.RE
+.PP
+\-\-no\-ssl\-verify
+.RS 4
+Do not verify the TLS certificate\&. This is the default; the option exists to override \-\-ssl\-verify\&.
 .RE
 .PP
 \-\-codeset\-filesys=codeset

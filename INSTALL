@@ -1,3 +1,8 @@
+NOTE: This fork builds with CMake, not the autotools "./configure" flow
+described below. For current build instructions (dependencies, dynamic vs.
+self-contained/static builds, macOS and Linux, and the HTTPS/TLS options),
+see BUILDING.md. The generic autotools notes below are retained for reference.
+
 Basic Installation
 ==================
 

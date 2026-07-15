@@ -1,0 +1,4 @@
+# Shell scripts and the Dockerfile must keep LF line endings or they break
+# when run on Linux (regardless of a checkout machine's core.autocrlf).
+*.sh            text eol=lf
+Dockerfile*     text eol=lf

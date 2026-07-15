@@ -10,7 +10,7 @@
 // are not organized at all, should have space to insert in places.
 //
 /* ************** IMPORTANT IF YOU ADD ERROR CODES!!!! ***********************/
-#define NUM_ERROR_CODES					((0x44)+1)
+#define NUM_ERROR_CODES					((0x47)+1)
 /* ************** IMPORTANT IF YOU ADD ERROR CODES!!!! ***********************/
 #define SR_SUCCESS				  0x00
 #define SR_SUCCESS_BUFFERING			  0x01
@@ -82,6 +82,9 @@
 #define SR_ERROR_CANT_CREATE_SOCKET	        - 0x42
 #define SR_ERROR_CREATE_PIPE_FAILED	        - 0x43
 #define SR_ERROR_ABORT_PIPE_SIGNALLED           - 0x44  // Not an error
+#define SR_ERROR_SSL_INIT_FAILED                - 0x45
+#define SR_ERROR_SSL_HANDSHAKE_FAILED           - 0x46
+#define SR_ERROR_SSL_NOT_COMPILED               - 0x47  // built without TLS support
 
 typedef struct ERROR_INFOst
 {

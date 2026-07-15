@@ -46,6 +46,12 @@
 #include "sr_compat.h"
 #include "debug.h"
 
+#if defined(HAVE_OPENSSL)
+#include <openssl/ssl.h>
+#include <openssl/err.h>
+#include <openssl/x509v3.h>
+#endif
+
 
 #if WIN32
 #define DEFAULT_TIMEOUT		(15 * 1000)
@@ -100,13 +106,100 @@ read_interface (char *if_name, uint32_t *addr)
 #endif
 }
 
+#if defined(HAVE_OPENSSL)
+/*
+ * Wrap an already-connected socket in a TLS session.  When ssl_verify is
+ * non-zero the server certificate and hostname are validated against the
+ * system trust store; otherwise the connection is encrypted but unverified
+ * (the default, matching the opt-in --ssl-verify behavior).
+ */
+static error_code
+socklib_ssl_handshake (HSOCKET *socket_handle, const char *host,
+		       int ssl_verify)
+{
+    SSL_CTX *ctx = NULL;
+    SSL *ssl = NULL;
+    long verify_result;
+
+    ctx = SSL_CTX_new (TLS_client_method ());
+    if (!ctx) {
+	debug_printf ("SSL_CTX_new failed\n");
+	return SR_ERROR_SSL_INIT_FAILED;
+    }
+    /* Require at least TLS 1.2 for modern streams. */
+    SSL_CTX_set_min_proto_version (ctx, TLS1_2_VERSION);
+
+    if (ssl_verify) {
+	SSL_CTX_set_verify (ctx, SSL_VERIFY_PEER, NULL);
+	if (SSL_CTX_set_default_verify_paths (ctx) != 1) {
+	    debug_printf ("Warning: could not load system CA certificates\n");
+	}
+    } else {
+	SSL_CTX_set_verify (ctx, SSL_VERIFY_NONE, NULL);
+    }
+
+    ssl = SSL_new (ctx);
+    if (!ssl) {
+	debug_printf ("SSL_new failed\n");
+	SSL_CTX_free (ctx);
+	return SR_ERROR_SSL_INIT_FAILED;
+    }
+
+    /* SNI: many virtual-hosted https servers require this. */
+    SSL_set_tlsext_host_name (ssl, host);
+
+    if (ssl_verify) {
+	/* Check that the cert actually matches the hostname. */
+	SSL_set_hostflags (ssl, X509_CHECK_FLAG_NO_PARTIAL_WILDCARDS);
+	if (SSL_set1_host (ssl, host) != 1) {
+	    debug_printf ("SSL_set1_host failed\n");
+	    SSL_free (ssl);
+	    SSL_CTX_free (ctx);
+	    return SR_ERROR_SSL_INIT_FAILED;
+	}
+    }
+
+    if (SSL_set_fd (ssl, socket_handle->s) != 1) {
+	debug_printf ("SSL_set_fd failed\n");
+	SSL_free (ssl);
+	SSL_CTX_free (ctx);
+	return SR_ERROR_SSL_INIT_FAILED;
+    }
+
+    if (SSL_connect (ssl) != 1) {
+	debug_printf ("SSL_connect (handshake) failed\n");
+	SSL_free (ssl);
+	SSL_CTX_free (ctx);
+	return SR_ERROR_SSL_HANDSHAKE_FAILED;
+    }
+
+    if (ssl_verify) {
+	verify_result = SSL_get_verify_result (ssl);
+	if (verify_result != X509_V_OK) {
+	    debug_printf ("Certificate verification failed: %ld\n",
+			  verify_result);
+	    SSL_shutdown (ssl);
+	    SSL_free (ssl);
+	    SSL_CTX_free (ctx);
+	    return SR_ERROR_SSL_HANDSHAKE_FAILED;
+	}
+    }
+
+    debug_printf ("TLS handshake OK, cipher = %s\n", SSL_get_cipher (ssl));
+    socket_handle->ssl = ssl;
+    socket_handle->ssl_ctx = ctx;
+    return SR_SUCCESS;
+}
+#endif /* HAVE_OPENSSL */
+
 /*
  * open's a tcp connection to host at port, host can be a dns name or IP,
- * socket_handle gets assigned to the handle for the connection
+ * socket_handle gets assigned to the handle for the connection.  When
+ * use_ssl is set, a TLS session is negotiated on top of the connection.
  */
-error_code 
-socklib_open (HSOCKET *socket_handle, char *host, int port, 
-	      char *if_name, int timeout)
+error_code
+socklib_open (HSOCKET *socket_handle, char *host, int port,
+	      char *if_name, int timeout, int use_ssl, int ssl_verify)
 {
     int rc;
     struct sockaddr_in address, local;
@@ -115,6 +208,31 @@ socklib_open (HSOCKET *socket_handle, char *host, int port,
 
     if (!socket_handle || !host)
 	return SR_ERROR_INVALID_PARAM;
+
+#if defined(HAVE_OPENSSL)
+    /* Free TLS objects left over from a previous connection on this handle.
+       We deliberately defer the free to here (instead of socklib_close) so a
+       reader thread that is still inside SSL_read is never racing an SSL_free
+       issued from another thread during teardown: by the time we re-open a
+       connection, that reader thread has already been joined.  SSL_free(NULL)
+       / SSL_CTX_free(NULL) are safe no-ops on the first open. */
+    if (socket_handle->ssl) {
+	SSL_free ((SSL *) socket_handle->ssl);
+    }
+    if (socket_handle->ssl_ctx) {
+	SSL_CTX_free ((SSL_CTX *) socket_handle->ssl_ctx);
+    }
+#endif
+    socket_handle->ssl = NULL;
+    socket_handle->ssl_ctx = NULL;
+
+    if (use_ssl) {
+#if defined(HAVE_OPENSSL)
+	/* nothing to do here; handshake happens after connect() below */
+#else
+	return SR_ERROR_SSL_NOT_COMPILED;
+#endif
+    }
 
     /* On error:
        Unix returns -1 and sets errno.
@@ -188,6 +306,23 @@ socklib_open (HSOCKET *socket_handle, char *host, int port,
 #endif
 
     socket_handle->closed = FALSE;
+
+    if (use_ssl) {
+#if defined(HAVE_OPENSSL)
+	error_code sr;
+	sr = socklib_ssl_handshake (socket_handle, host, ssl_verify);
+	if (sr != SR_SUCCESS) {
+	    closesocket (socket_handle->s);
+	    socket_handle->closed = TRUE;
+	    return sr;
+	}
+#else
+	closesocket (socket_handle->s);
+	socket_handle->closed = TRUE;
+	return SR_ERROR_SSL_NOT_COMPILED;
+#endif
+    }
+
     return SR_SUCCESS;
 }
 
@@ -200,6 +335,12 @@ socklib_cleanup()
 void
 socklib_close(HSOCKET *socket_handle)
 {
+    /* NOTE on TLS: socklib_close may be called from a different thread than
+       the one reading the socket (see rip_manager_stop), so we must NOT
+       SSL_free the session here -- that would be a use-after-free against a
+       reader still inside SSL_read.  Closing the underlying fd is enough to
+       unblock the reader; the SSL/SSL_CTX objects are freed later, from
+       socklib_open, once the reader thread has been joined. */
     closesocket(socket_handle->s);
     socket_handle->closed = TRUE;
 }
@@ -283,11 +424,21 @@ socklib_recvall (RIP_MANAGER_INFO* rmi, HSOCKET *socket_handle,
     sock = socket_handle->s;
     FD_ZERO(&fds);
     while(size) {
+	int ssl_has_pending = 0;
+
 	if (socket_handle->closed)
 	    return SR_ERROR_SOCKET_CLOSED;
-	
-	if (timeout > 0) {
-	    /* Wait up to 'timeout' seconds for data on socket to be 
+
+#if defined(HAVE_OPENSSL)
+	/* OpenSSL may already hold decrypted bytes from a previously read
+	   TLS record; select() on the raw fd wouldn't see them. */
+	if (socket_handle->ssl
+	    && SSL_pending ((SSL *) socket_handle->ssl) > 0)
+	    ssl_has_pending = 1;
+#endif
+
+	if (timeout > 0 && !ssl_has_pending) {
+	    /* Wait up to 'timeout' seconds for data on socket to be
 	       ready for read */
 #if __UNIX__
 	    FD_SET(rmi->abort_pipe[0], &fds);
@@ -303,14 +454,36 @@ socklib_recvall (RIP_MANAGER_INFO* rmi, HSOCKET *socket_handle,
 	    if (ret == 0) {
 		return SR_ERROR_TIMEOUT;
 	    }
-	}
 #if __UNIX__
-	if (FD_ISSET(rmi->abort_pipe[0], &fds)) {
-	    debug_printf ("socklib_recvall detected write to abort pipe.\n");
-	    return SR_ERROR_ABORT_PIPE_SIGNALLED;
-	}
+	    if (FD_ISSET(rmi->abort_pipe[0], &fds)) {
+		debug_printf ("socklib_recvall detected write to abort pipe.\n");
+		return SR_ERROR_ABORT_PIPE_SIGNALLED;
+	    }
 #endif
-        ret = recv(socket_handle->s, &buffer[read], size, 0);
+	}
+
+#if defined(HAVE_OPENSSL)
+	if (socket_handle->ssl) {
+	    ret = SSL_read ((SSL *) socket_handle->ssl, &buffer[read], size);
+	    if (ret <= 0) {
+		int ssl_err = SSL_get_error ((SSL *) socket_handle->ssl, ret);
+		if (ssl_err == SSL_ERROR_ZERO_RETURN) {
+		    /* Peer closed the TLS session cleanly. */
+		    ret = 0;
+		} else if (ssl_err == SSL_ERROR_WANT_READ
+			   || ssl_err == SSL_ERROR_WANT_WRITE) {
+		    /* Need more I/O (e.g. renegotiation); loop and retry. */
+		    continue;
+		} else {
+		    debug_printf ("SSL_read failed, ssl_err = %d\n", ssl_err);
+		    return SR_ERROR_RECV_FAILED;
+		}
+	    }
+	} else
+#endif
+	{
+	    ret = recv(socket_handle->s, &buffer[read], size, 0);
+	}
 	debug_printf ("RECV req %5d bytes, got %5d bytes\n", size, ret);
 
         if (ret == SOCKET_ERROR) {
@@ -319,7 +492,7 @@ socklib_recvall (RIP_MANAGER_INFO* rmi, HSOCKET *socket_handle,
 	    return SR_ERROR_RECV_FAILED;
 	}
 
-	/* Got zero bytes on blocking read.  For unix this is an 
+	/* Got zero bytes on blocking read.  For unix this is an
 	   orderly shutdown. */
 	if (ret == 0) {
 	    debug_printf ("recv received zero bytes!\n");
@@ -342,9 +515,24 @@ socklib_sendall (HSOCKET *socket_handle, char* buffer, int size)
 	if (socket_handle->closed)
 	    return SR_ERROR_SOCKET_CLOSED;
 
-        ret = send(socket_handle->s, &buffer[sent], size, 0);
-        if (ret == SOCKET_ERROR)
-	    return SR_ERROR_SEND_FAILED;
+#if defined(HAVE_OPENSSL)
+	if (socket_handle->ssl) {
+	    ret = SSL_write ((SSL *) socket_handle->ssl, &buffer[sent], size);
+	    if (ret <= 0) {
+		int ssl_err = SSL_get_error ((SSL *) socket_handle->ssl, ret);
+		if (ssl_err == SSL_ERROR_WANT_READ
+		    || ssl_err == SSL_ERROR_WANT_WRITE)
+		    continue;
+		debug_printf ("SSL_write failed, ssl_err = %d\n", ssl_err);
+		return SR_ERROR_SEND_FAILED;
+	    }
+	} else
+#endif
+	{
+	    ret = send(socket_handle->s, &buffer[sent], size, 0);
+	    if (ret == SOCKET_ERROR)
+		return SR_ERROR_SEND_FAILED;
+	}
 
 	if (ret == 0)
 	    break;

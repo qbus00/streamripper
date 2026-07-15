@@ -17,6 +17,11 @@ DESCRIPTION
        as individual files. In addition, streamripper includes a relay server
        for listening to the station while you are recording.
 
+       Both http:// and https:// stream URLs are supported. For https, TLS is
+       negotiated automatically (default port 443). Server certificate
+       verification is OFF by default; enable it with --ssl-verify. Note that
+       https through an http proxy (-p) is not supported.
+
 
 OPTIONS
        -h
@@ -308,6 +313,16 @@ OPTIONS
 
        --xs2
            Use capisces new algorithm (Apr 2008) for silence detection.
+
+       --ssl-verify
+           For https:// streams, verify the server's TLS certificate against
+           the system trust store (and check the hostname). This is OFF by
+           default, so by default https connections are encrypted but not
+           verified.
+
+       --no-ssl-verify
+           Do not verify the TLS certificate. This is the default; the option
+           exists to override --ssl-verify.
 
        --codeset-filesys=codeset
            Tells streamripper what codeset to use for the file names when it

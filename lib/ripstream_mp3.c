@@ -632,7 +632,7 @@ write_id3v2_frame (RIP_MANAGER_INFO *rmi,
     char bigbuf[HEADER_SIZE] = "";
     ID3V2frame id3v2frame;
 #ifndef WIN32
-    __uint32_t framesize = 0;
+    uint32_t framesize = 0;
 #else
     unsigned long int framesize = 0;
 #endif
