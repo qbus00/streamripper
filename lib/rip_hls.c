@@ -64,18 +64,6 @@ hls_url_is_m3u8 (const char *url)
     return 0;
 }
 
-/* Case-insensitive substring test (glib's g_ascii_strncasecmp, ASCII only). */
-static int
-ci_contains (const char *hay, const char *needle)
-{
-    size_t nl = strlen (needle);
-    if (!hay) return 0;
-    for (; *hay; hay++)
-	if (g_ascii_strncasecmp (hay, needle, nl) == 0)
-	    return 1;
-    return 0;
-}
-
 /* Parse "scheme://host[:port]/path".  ssl=1 for https (default port 443),
    else port 80.  Returns 0 on success. */
 static int
@@ -372,74 +360,6 @@ hls_wait (RIP_MANAGER_INFO *rmi, int seconds)
     if (ticks < 1) ticks = 1;
     for (i = 0; i < ticks && rmi->started; i++)
 	Sleep (200);
-}
-
-/*****************************************************************************
- * Content-based detection
- *****************************************************************************/
-/* Probe a URL to decide whether it is an HLS playlist, using the response
-   Content-Type and a bounded sniff of the body -- without reading a whole
-   (possibly endless) shoutcast stream.  Uses a short-lived connection. */
-static int
-hls_probe (RIP_MANAGER_INFO *rmi, const char *url)
-{
-    HSOCKET sock;
-    char host[MAX_HOST_LEN], path[HLS_MAX_URL];
-    int port, ssl, ret, is_hls = 0;
-    char req[HLS_MAX_URL + 256];
-    char header[MAX_HEADER_LEN];
-    char body[2048];
-
-    if (hls_parse_url (url, host, sizeof(host), &port, path, sizeof(path), &ssl) != 0)
-	return 0;
-    if (socklib_open (&sock, host, port,
-		      rmi->prefs->if_name[0] ? rmi->prefs->if_name : NULL,
-		      rmi->prefs->timeout, ssl, GET_SSL_VERIFY (rmi->prefs->flags))
-	!= SR_SUCCESS)
-	return 0;
-
-    snprintf (req, sizeof(req),
-	      "GET %s HTTP/1.0\r\nHost: %s:%d\r\nUser-Agent: %s\r\n"
-	      "Accept: */*\r\nConnection: close\r\n\r\n",
-	      path, host, port,
-	      rmi->prefs->useragent[0] ? rmi->prefs->useragent : "Streamripper/1.x");
-    if (socklib_sendall (&sock, req, strlen(req)) < 0) {
-	socklib_close (&sock);
-	return 0;
-    }
-
-    if (socklib_read_header (rmi, &sock, header, sizeof(header)) == SR_SUCCESS) {
-	/* 1. Content-Type: every HLS MIME type contains "mpegurl"
-	      (application/vnd.apple.mpegurl, application/x-mpegurl, ...). */
-	if (ci_contains (header, "mpegurl")) {
-	    is_hls = 1;
-	} else {
-	    /* 2. Sniff a bounded body prefix for an HLS-specific #EXT-X- tag
-		  (plain .m3u/.pls playlists never contain these). */
-	    ret = socklib_recvall (rmi, &sock, body, sizeof(body) - 1,
-				   rmi->prefs->timeout);
-	    if (ret > 0) {
-		body[ret] = 0;
-		if (strstr (body, "#EXT-X-") != NULL)
-		    is_hls = 1;
-	    }
-	}
-    }
-    socklib_close (&sock);
-    debug_printf ("hls_probe(%s) -> %d\n", url, is_hls);
-    return is_hls;
-}
-
-/* Decide whether to record `url` as HLS.  Detection is content-based: we
-   probe the server (Content-Type + body sniff for #EXT-X-) regardless of the
-   URL extension.  This means a URL that merely *looks* like HLS (ends in
-   .m3u8) but actually serves a standard stream is NOT treated as HLS -- it
-   falls through to the normal shoutcast/icecast path.  The .m3u8 extension is
-   only a hint used to prefer this probe when nothing else applies. */
-int
-hls_detect (RIP_MANAGER_INFO *rmi, const char *url)
-{
-    return hls_probe (rmi, url);
 }
 
 /*****************************************************************************

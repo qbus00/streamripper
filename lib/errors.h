@@ -10,7 +10,7 @@
 // are not organized at all, should have space to insert in places.
 //
 /* ************** IMPORTANT IF YOU ADD ERROR CODES!!!! ***********************/
-#define NUM_ERROR_CODES					((0x47)+1)
+#define NUM_ERROR_CODES					((0x48)+1)
 /* ************** IMPORTANT IF YOU ADD ERROR CODES!!!! ***********************/
 #define SR_SUCCESS				  0x00
 #define SR_SUCCESS_BUFFERING			  0x01
@@ -85,6 +85,7 @@
 #define SR_ERROR_SSL_INIT_FAILED                - 0x45
 #define SR_ERROR_SSL_HANDSHAKE_FAILED           - 0x46
 #define SR_ERROR_SSL_NOT_COMPILED               - 0x47  // built without TLS support
+#define SR_ERROR_IS_HLS                         - 0x48  // internal: stream is HLS, hand off to hls_rip
 
 typedef struct ERROR_INFOst
 {

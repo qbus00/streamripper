@@ -230,9 +230,13 @@ ripthread (void *thread_arg)
     debug_ripthread (rmi);
     debug_stream_prefs (rmi->prefs);
 
-    /* HLS (.m3u8) streams use a completely different transport (playlist +
-       segments) than shoutcast/icecast, so they take their own path. */
-    if (hls_detect (rmi, rmi->prefs->url)) {
+    /* Connect to remote server */
+    ret = start_ripping (rmi);
+
+    /* HLS is detected from the connect's response header (see start_ripping);
+       it uses a completely different transport (playlist + segments), so hand
+       off to the HLS ripper. */
+    if (ret == SR_ERROR_IS_HLS) {
 	rmi->status_callback (rmi, RM_STARTED, (void *)NULL);
 	callback_post_status (rmi, RM_STATUS_RIPPING);
 	threadlib_signal_sem (&rmi->started_sem);
@@ -242,8 +246,6 @@ ripthread (void *thread_arg)
 	goto DONE;
     }
 
-    /* Connect to remote server */
-    ret = start_ripping (rmi);
     if (ret != SR_SUCCESS) {
 	debug_printf ("Ripthread did start_ripping()\n");
 	threadlib_signal_sem (&rmi->started_sem);
@@ -397,7 +399,19 @@ start_ripping (RIP_MANAGER_INFO* rmi)
 	goto RETURN_ERR;
     }
 
-    /* If the icy_name exists, but is empty, set to a bogus name so 
+    /* Content-based HLS detection, reusing this connection's response header
+       (no separate probe): http_parse_sc_header() sets CONTENT_TYPE_HLS from
+       the HLS Content-Type (application/vnd.apple.mpegurl, ...) or from a
+       .m3u8 URL when the content type is otherwise unrecognized.  A URL that
+       merely looks like .m3u8 but serves a normal stream keeps its real audio
+       content type, so it is NOT caught and rips normally. */
+    if (rmi->http_info.content_type == CONTENT_TYPE_HLS) {
+	debug_printf ("start_ripping: detected HLS stream\n");
+	socklib_close (&rmi->stream_sock);
+	return SR_ERROR_IS_HLS;
+    }
+
+    /* If the icy_name exists, but is empty, set to a bogus name so
        that we can create the directory correctly, etc. */
     if (strlen(rmi->http_info.icy_name) == 0) {
 	strcpy (rmi->http_info.icy_name, "Streamripper_rips");

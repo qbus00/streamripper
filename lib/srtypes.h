@@ -119,6 +119,7 @@ typedef int error_code;
 #define CONTENT_TYPE_AAC		5
 #define CONTENT_TYPE_PLS		6
 #define CONTENT_TYPE_M3U		7
+#define CONTENT_TYPE_HLS		8
 #define CONTENT_TYPE_UNKNOWN		99
 
 /* 

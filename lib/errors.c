@@ -128,6 +128,7 @@ errors_init (void)
 		"retry without --ssl-verify to skip certificate verification.", 0x46);
     SET_ERR_STR("This streamripper was built without TLS support, so https\n"
 		"streams cannot be opened. Rebuild with OpenSSL enabled.", 0x47);
+    SET_ERR_STR("SR_ERROR_IS_HLS (internal)", 0x48);
 }
 
 char*

@@ -600,6 +600,11 @@ http_parse_sc_header (const char *url, char *header, SR_HTTP_HEADER *info)
     else if (strstr(stempbr,"audio/x-scpls")) {
 	info->content_type = CONTENT_TYPE_PLS;
     }
+    else if (strstr(stempbr,"mpegurl") || strstr(stempbr,"vnd.apple.mpegurl")) {
+	/* HLS playlist (application/vnd.apple.mpegurl, application/x-mpegurl,
+	   audio/mpegurl, ...) -- recorded by the HLS path, not shoutcast. */
+	info->content_type = CONTENT_TYPE_HLS;
+    }
     else if (strstr(stempbr,"text/html")) {
 	if (!info->http_location[0]) {
 	    return SR_ERROR_NO_RESPONSE_HEADER;
@@ -627,6 +632,14 @@ http_parse_sc_header (const char *url, char *header, SR_HTTP_HEADER *info)
 	    content_type_by_url = CONTENT_TYPE_M3U;
 	}
     }
+    {
+	/* .m3u8 (HLS) is 5 chars; allow a trailing ?query. */
+	int plen = url_path_len;
+	char *qq = strchr (url_info.path, '?');
+	if (qq) plen = (int) (qq - url_info.path);
+	if (plen >= 5 && !strncmp (&url_info.path[plen-5], ".m3u8", 5))
+	    content_type_by_url = CONTENT_TYPE_HLS;
+    }
 
     // Try to guess the server
 
@@ -648,9 +661,12 @@ http_parse_sc_header (const char *url, char *header, SR_HTTP_HEADER *info)
 	/* aac on icecast 2.0-2.1 declares content type of audio/mpeg */
 	/* In addition, there is at least one stream with a url 
 	   radioorenovscotia.ogg, but is actually audio/mpeg */
-	if (info->content_type == CONTENT_TYPE_MP3 
+	if (info->content_type == CONTENT_TYPE_MP3
 	    && content_type_by_url != CONTENT_TYPE_UNKNOWN
-	    && content_type_by_url != CONTENT_TYPE_OGG) {
+	    && content_type_by_url != CONTENT_TYPE_OGG
+	    && content_type_by_url != CONTENT_TYPE_HLS) {
+	    /* Don't let a .m3u8 URL override an explicit audio content type --
+	       a real stream served at a .m3u8 URL must still rip normally. */
 	    info->content_type = content_type_by_url;
 	}
     }
