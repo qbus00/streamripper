@@ -11,6 +11,11 @@ PROJECT (STREAMRIPPER)
 ## Tell CMake to be quiet
 CMAKE_POLICY (SET CMP0003 NEW)
 
+## Modern C baseline (gnu17 -- the code uses a few GNU extensions).
+SET (CMAKE_C_STANDARD 17)
+SET (CMAKE_C_STANDARD_REQUIRED ON)
+SET (CMAKE_C_EXTENSIONS ON)
+
 ## Default to release
 IF (NOT CMAKE_BUILD_TYPE)
   SET (CMAKE_BUILD_TYPE Release)
