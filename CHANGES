@@ -1,3 +1,13 @@
+New for 3.0.2-qbus
+------------------------------------
+* HLS detection is now content-based and folded into the normal connect
+  (no separate probe connection): a stream is treated as HLS if the response
+  Content-Type is an HLS type (application/vnd.apple.mpegurl, ...) or the URL
+  is .m3u8 with an otherwise unrecognized content type.  A normal stream at a
+  .m3u8 URL keeps its real audio content type and rips normally.  Normal
+  streams incur no extra connection.
+* Add --hls / --no-hls to force or disable HLS handling.
+
 New for 3.0.1-qbus
 ------------------------------------
 * macOS: use GCD dispatch semaphores instead of the deprecated (and
