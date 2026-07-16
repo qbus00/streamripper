@@ -326,6 +326,22 @@ socklib_open (HSOCKET *socket_handle, char *host, int port,
     return SR_SUCCESS;
 }
 
+/* Negotiate TLS on an already-connected socket (does NOT open a new
+   connection).  Used to upgrade an HTTP CONNECT proxy tunnel to TLS. */
+error_code
+socklib_start_tls (HSOCKET *socket_handle, char *host, int ssl_verify)
+{
+    if (!socket_handle || !host)
+	return SR_ERROR_INVALID_PARAM;
+    if (socket_handle->closed)
+	return SR_ERROR_SOCKET_CLOSED;
+#if defined(HAVE_OPENSSL)
+    return socklib_ssl_handshake (socket_handle, host, ssl_verify);
+#else
+    return SR_ERROR_SSL_NOT_COMPILED;
+#endif
+}
+
 void
 socklib_cleanup()
 {

@@ -51,7 +51,8 @@ streamripper URL -r 8000
 - **Certificate verification is off by default** — connections are encrypted
   but not verified. Turn it on with **`--ssl-verify`** (use `--no-ssl-verify`
   to force the default).
-- https **through an http proxy** (`-p`) is not supported.
+- https **through an http proxy** (`-p`) is supported via CONNECT tunneling
+  (including `Proxy-Authorization` when the proxy URL has `user:pass@`).
 
 ## Common options
 

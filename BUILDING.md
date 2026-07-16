@@ -129,7 +129,7 @@ The static Linux binaries are architecture-specific and 64-bit only. There is no
 
 - `https://` is auto-detected (default port 443); TLS is negotiated with OpenSSL.
 - Certificate verification is **off by default**; pass `--ssl-verify` to enable it.
-- https through an http proxy (`-p`) is not supported (would need CONNECT
-  tunneling).
+- https through an http proxy (`-p`) works via CONNECT tunneling (with
+  `Proxy-Authorization` if the proxy URL includes `user:pass@`).
 - Some CDNs drop the connection for the default `User-Agent`; if a stream
   connects then fails to read a header, try `-u "WinampMPEG/5.0"`.

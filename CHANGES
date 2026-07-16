@@ -1,3 +1,11 @@
+New for 2.0.1-qbus
+------------------------------------
+* Support https:// streams through an HTTP proxy (-p) via CONNECT tunneling.
+  Opens a CONNECT tunnel to the proxy, then negotiates TLS with the origin
+  server over that same socket (new socklib_start_tls()).  Sends the request
+  in origin-form over the tunnel and honors Proxy-Authorization when the proxy
+  URL includes user:pass@.  (Supersedes the 2.0.0 limitation below.)
+
 New for 2.0.0-qbus (HTTPS / self-contained fork)
 ------------------------------------
 * Add HTTPS/TLS support for https:// stream URLs (via OpenSSL).  The scheme is

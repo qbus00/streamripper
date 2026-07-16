@@ -26,7 +26,7 @@
 /******************************************************************************
  * Function prototypes
  *****************************************************************************/
-static char* make_auth_header(const char *header_name, 
+static char* make_auth_header(const char *header_name,
 			      const char *username, const char *password);
 static char* b64enc(const char *buf, int size);
 static error_code
@@ -34,7 +34,7 @@ http_get_pls (RIP_MANAGER_INFO* rmi, HSOCKET *sock, SR_HTTP_HEADER *info);
 static error_code
 http_get_m3u (RIP_MANAGER_INFO* rmi, HSOCKET *sock, SR_HTTP_HEADER *info);
 static error_code
-http_get_sc_header(RIP_MANAGER_INFO* rmi, const char* url, 
+http_get_sc_header(RIP_MANAGER_INFO* rmi, const char* url,
 		   HSOCKET *sock, SR_HTTP_HEADER *info);
 static error_code
 http_parse_url(const char *url, URLINFO *urlinfo);
@@ -49,11 +49,11 @@ http_parse_url(const char *url, URLINFO *urlinfo);
 /******************************************************************************
  * Public functions
  *****************************************************************************/
-/* Connect to a shoutcast type stream, leaves when it's about to 
+/* Connect to a shoutcast type stream, leaves when it's about to
    get the header info */
 error_code
 http_sc_connect (RIP_MANAGER_INFO* rmi,
-		 HSOCKET *sock, const char *url, const char *proxyurl, 
+		 HSOCKET *sock, const char *url, const char *proxyurl,
 		 SR_HTTP_HEADER *info, char *useragent, char *if_name)
 {
     char headbuf[MAX_HEADER_LEN];
@@ -70,59 +70,197 @@ http_sc_connect (RIP_MANAGER_INFO* rmi,
 	    return ret;
 	}
 
-	if (proxyurl) {
+	if (proxyurl && target_info.ssl) {
+	    /* HTTPS through an HTTP proxy: open a CONNECT tunnel to the proxy,
+	       then negotiate TLS with the origin server over that same tunnel
+	       socket (we must NOT open a second connection). */
+	    char connect_req[MAX_HEADER_LEN];
+	    char connect_response[MAX_HEADER_LEN];
+	    char *status;
+
+	    debug_printf ("***** PROXY = %s (https via CONNECT) *****\n", proxyurl);
+	    if ((ret = http_parse_url (proxyurl, &url_info)) != SR_SUCCESS) {
+		return ret;
+	    }
+
+	    if ((ret = socklib_init()) != SR_SUCCESS)
+		return ret;
+
+	    /* 1. Plain TCP connection to the proxy (no TLS yet). */
+	    debug_printf ("http_sc_connect(): opening proxy connection"
+			  " host=%s port=%d\n", url_info.host, url_info.port);
+	    ret = socklib_open (sock, url_info.host, url_info.port, if_name,
+				rmi->prefs->timeout, 0, 0);
+	    if (ret != SR_SUCCESS) {
+		return ret;
+	    }
+
+	    /* 2. Ask the proxy to tunnel to the origin: CONNECT host:port. */
+	    snprintf (connect_req, sizeof(connect_req),
+		      "CONNECT %s:%d HTTP/1.1\r\n"
+		      "Host: %s:%d\r\n"
+		      "User-Agent: %s\r\n",
+		      target_info.host, target_info.port,
+		      target_info.host, target_info.port,
+		      useragent[0] ? useragent : "Streamripper/1.x");
+	    if (url_info.username[0]) {
+		char *authbuf = make_auth_header ("Proxy-Authorization",
+						  url_info.username,
+						  url_info.password);
+		if (authbuf) {
+		    strncat (connect_req, authbuf,
+			     sizeof(connect_req) - strlen(connect_req) - 3);
+		    free (authbuf);
+		}
+	    }
+	    strncat (connect_req, "\r\n",
+		     sizeof(connect_req) - strlen(connect_req) - 1);
+
+	    debug_printf ("CONNECT request:\n%s", connect_req);
+	    ret = socklib_sendall (sock, connect_req, strlen(connect_req));
+	    if (ret < 0) {
+		return ret;
+	    }
+
+	    /* 3. Read the proxy's CONNECT response (status line + headers). */
+	    ret = socklib_read_header (rmi, sock, connect_response,
+				       sizeof(connect_response));
+	    if (ret != SR_SUCCESS) {
+		return ret;
+	    }
+	    debug_printf ("CONNECT response:\n%s\n", connect_response);
+
+	    /* Accept "HTTP/1.x 200 ..." (proxies vary in version/wording, e.g.
+	       "200 Connection established"). */
+	    status = strchr (connect_response, ' ');
+	    if (!status || strncmp (status + 1, "200", 3) != 0) {
+		debug_printf ("Proxy CONNECT did not return 200\n");
+		return SR_ERROR_CONNECT_FAILED;
+	    }
+
+	    /* 4. Negotiate TLS with the origin over the tunnel (same socket). */
+	    debug_printf ("Starting TLS over proxy tunnel to %s\n",
+			  target_info.host);
+	    ret = socklib_start_tls (sock, target_info.host,
+				     GET_SSL_VERIFY (rmi->prefs->flags));
+	    if (ret != SR_SUCCESS) {
+		return ret;
+	    }
+
+	    /* 5. Send the request in ORIGIN form (proxyurl == NULL): over the
+		  tunnel we speak directly to the origin server. */
+	    ret = http_construct_sc_request (url, NULL, headbuf, useragent,
+					     rmi->prefs->http10);
+	    if (ret != SR_SUCCESS) {
+		return ret;
+	    }
+	    ret = socklib_sendall (sock, headbuf, strlen(headbuf));
+	    if (ret < 0) {
+		return ret;
+	    }
+
+	    if ((ret = http_get_sc_header (rmi, url, sock, info)) != SR_SUCCESS)
+		return ret;
+
+	    if (*info->http_location) {
+		/* RECURSIVE CASE */
+		debug_printf ("Redirecting: %s\n", info->http_location);
+		return http_sc_connect (rmi, sock, info->http_location,
+					proxyurl, info, useragent, if_name);
+	    } else {
+		break;
+	    }
+	} else if (proxyurl) {
+	    /* Regular HTTP through proxy */
 	    debug_printf ("***** PROXY = %s *****\n", proxyurl);
 	    if ((ret = http_parse_url (proxyurl, &url_info)) != SR_SUCCESS) {
 		return ret;
 	    }
-	    /* https-through-proxy needs CONNECT tunneling, not yet supported. */
-	    if (target_info.ssl) {
-		debug_printf ("https over a proxy is not supported\n");
-		return SR_ERROR_INVALID_URL;
-	    }
-	} else {
-	    url_info = target_info;
-	}
+	    
+	    debug_printf("http_sc_connect(): calling socklib_init\n");
+	    if ((ret = socklib_init()) != SR_SUCCESS)
+		return ret;
 
-	debug_printf("http_sc_connect(): calling socklib_init\n");
-	if ((ret = socklib_init()) != SR_SUCCESS)
-	    return ret;
-
-	debug_printf ("http_sc_connect(): calling socklib_open"
+	    debug_printf ("http_sc_connect(): calling socklib_open"
 		      " host=%s, port=%d ssl=%d\n", url_info.host,
 		      url_info.port, url_info.ssl);
-	ret = socklib_open (sock, url_info.host, url_info.port, if_name,
-			    rmi->prefs->timeout, url_info.ssl,
-			    GET_SSL_VERIFY (rmi->prefs->flags));
-	if (ret != SR_SUCCESS) {
-	    return ret;
-	}
+	    ret = socklib_open (sock, url_info.host, url_info.port, if_name,
+				rmi->prefs->timeout, url_info.ssl,
+				GET_SSL_VERIFY (rmi->prefs->flags));
+	    if (ret != SR_SUCCESS) {
+		return ret;
+	    }
+	    
+	    debug_printf("http_sc_connect(): calling http_construct_sc_request\n");
+	    ret = http_construct_sc_request (url, proxyurl, headbuf, useragent,
+					     rmi->prefs->http10);
+	    if (ret != SR_SUCCESS) {
+		return ret;
+	    }
 
-	debug_printf("http_sc_connect(): calling http_construct_sc_request\n");
-	ret = http_construct_sc_request (url, proxyurl, headbuf, useragent,
-					 rmi->prefs->http10);
-	if (ret != SR_SUCCESS) {
-	    return ret;
-	}
+	    debug_printf("http_sc_connect(): calling socklib_sendall\n");
+	    ret = socklib_sendall (sock, headbuf, strlen(headbuf));
+	    if (ret < 0) {
+		return ret;
+	    }
 
-	debug_printf("http_sc_connect(): calling socklib_sendall\n");
-	ret = socklib_sendall (sock, headbuf, strlen(headbuf));
-	if (ret < 0) {
-	    return ret;
-	}
+	    debug_printf("http_sc_connect(): calling http_get_sc_header\n");
+	    if ((ret = http_get_sc_header(rmi, url, sock, info)) != SR_SUCCESS)
+		return ret;
 
-	debug_printf("http_sc_connect(): calling http_get_sc_header\n");
-	if ((ret = http_get_sc_header(rmi, url, sock, info)) != SR_SUCCESS)
-	    return ret;
-
-	if (*info->http_location) {
-	    /* RECURSIVE CASE */
-	    debug_printf ("Redirecting: %s\n", info->http_location);
-	    url = info->http_location;
-	    return http_sc_connect (rmi, sock, info->http_location, 
-				    proxyurl, info, useragent, if_name);
+	    if (*info->http_location) {
+		/* RECURSIVE CASE */
+		debug_printf ("Redirecting: %s\n", info->http_location);
+		url = info->http_location;
+		return http_sc_connect (rmi, sock, info->http_location,
+					proxyurl, info, useragent, if_name);
+	    } else {
+		break;
+	    }
 	} else {
-	    break;
+	    /* No proxy, just connect normally */
+	    url_info = target_info;
+	    
+	    debug_printf("http_sc_connect(): calling socklib_init\n");
+	    if ((ret = socklib_init()) != SR_SUCCESS)
+		return ret;
+
+	    debug_printf ("http_sc_connect(): calling socklib_open"
+		      " host=%s, port=%d ssl=%d\n", url_info.host,
+		      url_info.port, url_info.ssl);
+	    ret = socklib_open (sock, url_info.host, url_info.port, if_name,
+				rmi->prefs->timeout, url_info.ssl,
+				GET_SSL_VERIFY (rmi->prefs->flags));
+	    if (ret != SR_SUCCESS) {
+		return ret;
+	    }
+
+	    debug_printf("http_sc_connect(): calling http_construct_sc_request\n");
+	    ret = http_construct_sc_request (url, proxyurl, headbuf, useragent,
+					     rmi->prefs->http10);
+	    if (ret != SR_SUCCESS) {
+		return ret;
+	    }
+
+	    debug_printf("http_sc_connect(): calling socklib_sendall\n");
+	    ret = socklib_sendall (sock, headbuf, strlen(headbuf));
+	    if (ret < 0) {
+		return ret;
+	    }
+
+	    debug_printf("http_sc_connect(): calling http_get_sc_header\n");
+	    if ((ret = http_get_sc_header(rmi, url, sock, info)) != SR_SUCCESS)
+		return ret;
+
+	    if (*info->http_location) {
+		/* RECURSIVE CASE */
+		debug_printf ("Redirecting: %s\n", info->http_location);
+		url = info->http_location;
+		return http_sc_connect (rmi, sock, info->http_location,
+					proxyurl, info, useragent, if_name);
+	    } else {
+		break;
+	    }
 	}
     }
 
