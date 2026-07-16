@@ -280,6 +280,16 @@ Use capisce\'s new algorithm (Apr 2008) for silence detection\&.
 Use the HTTP/1\&.0 protocol instead of HTTP/1\&.1 for the stream request\&. Useful for servers that do not handle HTTP/1\&.1 correctly\&.
 .RE
 .PP
+\-\-hls
+.RS 4
+Force HLS (\&.m3u8) handling, overriding autodetection\&.
+.RE
+.PP
+\-\-no\-hls
+.RS 4
+Force normal\-stream handling, disabling HLS autodetection\&.
+.RE
+.PP
 \-\-wav
 .RS 4
 Decode each ripped mp3 track and write it as a 16\-bit PCM WAV file instead of mp3\&. Applies to individual tracks from mp3 streams only (not to aac/ogg streams or single\-file/relay output)\&.

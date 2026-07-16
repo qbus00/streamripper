@@ -305,6 +305,8 @@ print_usage (FILE* stream)
     fprintf(stream, "      --stderr       - Print ripping status to stderr (old behavior)\n");
     fprintf(stream, "      --debug        - Save debugging trace\n");
     fprintf(stream, "      --http10       - Use HTTP/1.0 (for servers that mishandle HTTP/1.1)\n");
+    fprintf(stream, "      --hls          - Force HLS (.m3u8) handling (override autodetection)\n");
+    fprintf(stream, "      --no-hls       - Force normal-stream handling (disable HLS autodetection)\n");
     fprintf(stream, "      --wav          - Decode mp3 tracks and write .wav files\n");
     fprintf(stream, "      --no-cue       - Don't write .cue sheet files\n");
     fprintf(stream, "TLS opts (for https:// stream URLs):\n");
@@ -532,6 +534,16 @@ parse_extended_options (STREAM_PREFS* prefs, char* rule)
     /* Connect using HTTP/1.0 (for servers that mishandle HTTP/1.1) */
     if (!strcmp(rule,"http10")) {
 	prefs->http10 = 1;
+	return;
+    }
+
+    /* Force HLS (.m3u8) handling / force normal stream (override autodetect) */
+    if (!strcmp(rule,"hls")) {
+	prefs->hls_mode = HLS_MODE_FORCE;
+	return;
+    }
+    if (!strcmp(rule,"no-hls") || !strcmp(rule,"no_hls")) {
+	prefs->hls_mode = HLS_MODE_OFF;
 	return;
     }
 

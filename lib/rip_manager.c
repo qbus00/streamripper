@@ -230,6 +230,17 @@ ripthread (void *thread_arg)
     debug_ripthread (rmi);
     debug_stream_prefs (rmi->prefs);
 
+    /* --hls forces the HLS path without any autodetection. */
+    if (rmi->prefs->hls_mode == HLS_MODE_FORCE) {
+	rmi->status_callback (rmi, RM_STARTED, (void *)NULL);
+	callback_post_status (rmi, RM_STATUS_RIPPING);
+	threadlib_signal_sem (&rmi->started_sem);
+	ret = hls_rip (rmi);
+	if (ret != SR_SUCCESS && ret != SR_ERROR_ABORT_PIPE_SIGNALLED)
+	    callback_post_error (rmi, ret);
+	goto DONE;
+    }
+
     /* Connect to remote server */
     ret = start_ripping (rmi);
 
@@ -406,9 +417,17 @@ start_ripping (RIP_MANAGER_INFO* rmi)
        merely looks like .m3u8 but serves a normal stream keeps its real audio
        content type, so it is NOT caught and rips normally. */
     if (rmi->http_info.content_type == CONTENT_TYPE_HLS) {
-	debug_printf ("start_ripping: detected HLS stream\n");
-	socklib_close (&rmi->stream_sock);
-	return SR_ERROR_IS_HLS;
+	if (rmi->prefs->hls_mode == HLS_MODE_OFF) {
+	    /* --no-hls: rip the response as a generic (mp3) byte stream
+	       instead of treating it as a playlist. */
+	    debug_printf ("start_ripping: HLS detected but --no-hls; "
+			  "ripping as normal stream\n");
+	    rmi->http_info.content_type = CONTENT_TYPE_MP3;
+	} else {
+	    debug_printf ("start_ripping: detected HLS stream\n");
+	    socklib_close (&rmi->stream_sock);
+	    return SR_ERROR_IS_HLS;
+	}
     }
 
     /* If the icy_name exists, but is empty, set to a bogus name so

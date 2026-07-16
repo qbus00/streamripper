@@ -122,6 +122,11 @@ typedef int error_code;
 #define CONTENT_TYPE_HLS		8
 #define CONTENT_TYPE_UNKNOWN		99
 
+/* prefs.hls_mode: how to choose between the HLS and shoutcast paths. */
+#define HLS_MODE_AUTO	0	/* autodetect (Content-Type / .m3u8) */
+#define HLS_MODE_FORCE	1	/* --hls: always record as HLS */
+#define HLS_MODE_OFF	2	/* --no-hls: always record as a normal stream */
+
 /* 
  * IO_DATA_INPUT is a interface for socket input data, it has one 
  * method 'get_data' and is called by a "ripper" which is effectivly 
@@ -488,6 +493,7 @@ struct stream_prefs
                                         //  servers that mishandle HTTP/1.1
     int wav_output;			// decode mp3 tracks and write .wav files
     int no_cue;				// don't create .cue sheet files
+    int hls_mode;			// HLS_MODE_AUTO/FORCE/OFF (see below)
     u_short relay_port;			// port to use for the relay server
 					//  GCS 3/30/07 change to u_short
     u_short max_port;			// highest port the relay server 

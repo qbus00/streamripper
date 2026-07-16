@@ -48,10 +48,14 @@ streamripper URL -r 8000
 
 ## HLS (`.m3u8`)
 
-If the URL ends in `.m3u8`, streamripper records it as HLS: it fetches the
-playlist (following a master playlist to its first variant), then polls the
-media playlist and appends each **new segment**'s bytes to a single output
-file until you stop it (`-l`, Ctrl-C) or a VOD playlist ends.
+HLS is **autodetected** from the response `Content-Type`
+(`application/vnd.apple.mpegurl`, …) or a `.m3u8` URL — so extensionless HLS
+works too, and a normal stream served at a `.m3u8` URL is *not* mistaken for
+HLS (its real audio content-type wins). Use `--hls` / `--no-hls` to force the
+choice. When recording HLS, streamripper fetches the playlist (following a
+master playlist to its first variant), then polls the media playlist and
+appends each **new segment**'s bytes to a single output file until you stop it
+(`-l`, Ctrl-C) or a VOD playlist ends.
 
 ```sh
 streamripper "https://example.com/radio/playlist.m3u8" -d ~/rec -a Show.aac -A -l 3600
@@ -95,6 +99,7 @@ Notes:
 | `--wav` | Decode mp3 tracks and save them as `.wav` files |
 | `--no-cue` | Don't write `.cue` sheet files |
 | `--http10` | Use HTTP/1.0 (for servers that mishandle HTTP/1.1) |
+| `--hls` / `--no-hls` | Force / disable HLS handling (override autodetection) |
 | `--ssl-verify` | Verify the TLS certificate for https streams |
 | `-m seconds` | Timeout before a stalled connection is dropped |
 
