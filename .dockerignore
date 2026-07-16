@@ -1,0 +1,7 @@
+.git
+build/
+dist/
+macos-build/
+*.o
+*.a
+*.gz
