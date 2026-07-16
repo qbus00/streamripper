@@ -858,7 +858,6 @@ parse_and_subst_pat (RIP_MANAGER_INFO* rmi,
     gchar datebuf[DATEBUF_LEN];
     int opi = 0;
     int nfi = 0;
-    int done;
     gchar* pat = pattern;
 
     /* Reserve 5 bytes: 4 for the .mp3 extension, and 1 for null char */
@@ -867,7 +866,6 @@ parse_and_subst_pat (RIP_MANAGER_INFO* rmi,
     mstrcpy (newfile, directory);
     opi = 0;
     nfi = mstrlen(newfile);
-    done = 0;
 
     /* Strip artist, title, album */
     debug_printf ("parse_and_subst_pat: stripping\n");
@@ -883,7 +881,6 @@ parse_and_subst_pat (RIP_MANAGER_INFO* rmi,
     debug_printf ("parse_and_subst_pat: substitute pattern\n");
     while (nfi < MAX_FILEBASELEN) {
 	if (pat[opi] == 0) {
-	    done = 1;
 	    break;
 	}
 	if (pat[opi] != m_('%')) {
@@ -951,7 +948,6 @@ parse_and_subst_pat (RIP_MANAGER_INFO* rmi,
 	    /* The pattern ends in '%', but that's ok. */
 	    newfile[nfi++] = pat[opi++];
 	    newfile[nfi] = 0;
-	    done = 1;
 	    break;
 	case m_('0'): case m_('1'): case m_('2'): case m_('3'): case m_('4'): 
 	case m_('5'): case m_('6'): case m_('7'): case m_('8'): case m_('9'): 
@@ -1392,7 +1388,6 @@ trim_mp3_suffix (RIP_MANAGER_INFO* rmi, gchar *filename)
 static int
 get_next_sequence_number (RIP_MANAGER_INFO* rmi, gchar* fn_base)
 {
-    int rc;
     int di = 0;
     int edi = 0;
     int seq;
@@ -1417,8 +1412,8 @@ get_next_sequence_number (RIP_MANAGER_INFO* rmi, gchar* fn_base)
     fn_prefix[0] = 0;
     mstrcpy (fn_prefix, &fn_base[edi+1]);
 
-    rc = string_from_gstring (rmi, dname, SR_MAX_PATH, dir_name, CODESET_FILESYS);
-    rc = string_from_gstring (rmi, fnp, SR_MAX_PATH, fn_prefix, CODESET_FILESYS);
+    string_from_gstring (rmi, dname, SR_MAX_PATH, dir_name, CODESET_FILESYS);
+    string_from_gstring (rmi, fnp, SR_MAX_PATH, fn_prefix, CODESET_FILESYS);
 
     /* Look through directory for a filenames that match prefix */
     if ((dp = opendir (dname)) == 0) {

@@ -516,7 +516,7 @@ string_from_gstring (RIP_MANAGER_INFO* rmi, char* c, int clen, mchar* m, int cod
 	}
 	/* GCS FIX: truncation can chop multibyte string */
 	/* This will be fixed by using dynamic memory here... */
-	if (cstring_len >= clen) {
+	if (cstring_len >= (gsize) clen) {
 	    cstring_len = clen - 1;
 	}
 	memcpy (c, cstring, cstring_len);

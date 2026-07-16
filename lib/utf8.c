@@ -307,8 +307,6 @@ int utf8_encode(const char *from, char **to)
 
 int utf8_decode(const char *from, char **to)
 {
-    char *charset;
-
     if(*from == 0) {
 	*to = malloc(1);
 	**to = 0;

@@ -107,7 +107,7 @@ int utf8_mbtowc(int *pwc, const char *s, size_t n)
   else
     return -1;
 
-  if (n < k)
+  if (n < (size_t) k)
     return -1;
   wc = *s++ & ((1 << (7 - k)) - 1);
   for (i = 1; i < k; i++) {
@@ -158,7 +158,7 @@ int utf8_wctomb(char *s, int wc1)
     *s++ = 0x80 | (wc & 0x3f);
     return 5;
   }
-  else if (wc < (1 << 31)) {
+  else if (wc < 0x80000000U) {
     *s++ = 0xfc | (wc >> 30);
     *s++ = 0x80 | ((wc >> 24) & 0x3f);
     *s++ = 0x80 | ((wc >> 18) & 0x3f);

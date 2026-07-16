@@ -212,7 +212,7 @@ IF (SR_SSL_LIBS)
   SET (STREAMRIPPER_LIBS ${STREAMRIPPER_LIBS} ${SR_SSL_LIBS})
 ENDIF (SR_SSL_LIBS)
 
-SET (STREAMRIPPER_LIBS ${STREAMRIPPER_LIBS} ${SR_EXTRA_LIBS} ${MATH_LIB})
+SET (STREAMRIPPER_LIBS ${STREAMRIPPER_LIBS} ${SR_EXTRA_LIBS})
 
 ##-----------------------------------------------------------------------------
 ##  Linking

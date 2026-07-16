@@ -184,7 +184,6 @@ findsep_silence (const char* mpgbuf,
 {
     DECODE_STRUCT ds;
     struct mad_decoder decoder;
-    int result;
     unsigned long silstart;
     int i;
     
@@ -216,7 +215,7 @@ findsep_silence (const char* mpgbuf,
     /* Run decoder */
     mad_decoder_init (&decoder, &ds, input, header, filter, output, 
 	error, NULL);
-    result = mad_decoder_run (&decoder, MAD_DECODER_MODE_SYNC);
+    (void) mad_decoder_run (&decoder, MAD_DECODER_MODE_SYNC);
     mad_decoder_finish (&decoder);
 
     debug_printf ("total length:    %d\n", ds.pcmpos);
@@ -572,7 +571,6 @@ find_bitrate (unsigned long* bitrate, const char* mpgbuf, long mpgsize)
 {
     struct mad_decoder decoder;
     GET_BITRATE_STRUCT gbs;
-    int result;
     
     /* initialize and start decoder */
     gbs.mpgbuf = (unsigned char*) mpgbuf;
@@ -587,7 +585,7 @@ find_bitrate (unsigned long* bitrate, const char* mpgbuf, long mpgsize)
 	NULL /* output */,
 	NULL /* error */,
 	NULL /* message */);
-    result = mad_decoder_run (&decoder, MAD_DECODER_MODE_SYNC);
+    (void) mad_decoder_run (&decoder, MAD_DECODER_MODE_SYNC);
     mad_decoder_finish (&decoder);
     *bitrate = gbs.bitrate;
     return SR_SUCCESS;

@@ -127,7 +127,6 @@ findsep_silence_2 (const char* mpgbuf,
 {
     DECODE_STRUCT ds;
     struct mad_decoder decoder;
-    int result;
     int bestsil;
     int i;
     double delta = 1;
@@ -166,7 +165,7 @@ findsep_silence_2 (const char* mpgbuf,
 		     output /* output */,
 		     error /* error */,
 		     NULL /* message */);
-    result = mad_decoder_run(&decoder, MAD_DECODER_MODE_SYNC);
+    (void) mad_decoder_run(&decoder, MAD_DECODER_MODE_SYNC);
     mad_decoder_finish(&decoder);
 
     debug_printf ("total length:    %d\n", ds.pcmpos);

@@ -295,10 +295,6 @@ ripstream_start_track (RIP_MANAGER_INFO* rmi, TRACK_INFO* ti)
 error_code
 ripstream_end_track (RIP_MANAGER_INFO* rmi, Writer *writer)
 {
-    Cbuf3 *cbuf3 = &rmi->cbuf3;
-    GQueue *write_list = cbuf3->write_list;
-    mchar mfullpath[SR_MAX_PATH];
-    char fullpath[SR_MAX_PATH];
     error_code rc;
 
     if (rmi->write_data) {
@@ -308,7 +304,7 @@ ripstream_end_track (RIP_MANAGER_INFO* rmi, Writer *writer)
     /* Rename the file to complete, or maybe leave in incomplete */
     debug_printf ("Current track number %d (skipping if less than %d)\n", 
 	writer->m_track_no, rmi->prefs->dropcount);
-    if (writer->m_track_no >= rmi->prefs->dropcount) {
+    if ((unsigned long) writer->m_track_no >= rmi->prefs->dropcount) {
 	rc = filelib_rename_to_complete (rmi, writer);
 	if (rc != SR_SUCCESS) {
 	    return rc;

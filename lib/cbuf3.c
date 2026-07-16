@@ -92,7 +92,7 @@ cbuf3_allocate_minimum (struct cbuf3 *cbuf3,
 	return SR_SUCCESS;
     }
 
-    for (i = 0; i < num_chunks - cbuf3->num_chunks; i++) {
+    for (i = 0; (unsigned long) i < num_chunks - cbuf3->num_chunks; i++) {
 	char* chunk = (char*) malloc (cbuf3->chunk_size);
 	if (!chunk) {
 	    threadlib_signal_sem (&cbuf3->sem);

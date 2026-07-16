@@ -90,11 +90,25 @@
                           (void *)callback, (void *)arg)
 #define WaitForThread(_thandle_)	pthread_join(_thandle_, NULL)
 #define DestroyThread(_thandle_)	// is there one for unix?
+
+#if defined (__APPLE__)
+/* macOS deprecated (and never really supported) unnamed POSIX semaphores,
+   so use GCD dispatch semaphores there.  dispatch_semaphore_t is an opaque
+   pointer, which also makes threadlib_create_sem()'s return-by-value safe. */
+#include <dispatch/dispatch.h>
+#define HSEM		dispatch_semaphore_t
+#define	SemInit(_s_)	((_s_) = dispatch_semaphore_create (0))
+#define	SemWait(_s_)	dispatch_semaphore_wait ((_s_), DISPATCH_TIME_FOREVER)
+#define	SemPost(_s_)	dispatch_semaphore_signal ((_s_))
+#define	SemDestroy(_s_)	dispatch_release ((_s_))
+#else
 #define HSEM		sem_t
 #define	SemInit(_s_)	sem_init(&(_s_), 0, 0)
 #define	SemWait(_s_)	sem_wait(&(_s_))
 #define	SemPost(_s_)	sem_post(&(_s_))
 #define	SemDestroy(_s_)	sem_destroy(&(_s_))
+#endif
+
 #define Sleep(x) 	usleep(1000*x)
 
 #endif
