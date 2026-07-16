@@ -66,6 +66,9 @@ Notes:
   up to the last complete segment.
 - Track splitting / ICY metadata don't apply to HLS — it's single-file.
 - HLS through an http proxy (`-p`) is not supported (direct fetch only).
+- Only `-d`, `-a`, `-l`, `-u`, `-m`, and `--ssl-verify` affect an HLS rip.
+  Pipeline options (`--wav`, `--no-cue`, `-A`, `-i`, `-s`, `--xs-*`, relay `-r`)
+  don't apply and are silently ignored.
 
 ## HTTPS / TLS
 
