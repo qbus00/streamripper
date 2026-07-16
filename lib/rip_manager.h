@@ -23,7 +23,7 @@
 #include "errors.h"
 #include "sr_compat.h"
 
-#define SRVERSION	"3.0.0-qbus"
+#define SRVERSION	"3.0.1-qbus"
 
 #if defined (WIN32)
 #define SRPLATFORM      "windows"
