@@ -1,3 +1,15 @@
+New for 3.0.1-qbus
+------------------------------------
+* macOS: use GCD dispatch semaphores instead of the deprecated (and
+  unsupported) unnamed POSIX semaphores; macOS threading now works.
+* Set the C standard to C17 (gnu17); convert argv.c K&R-style function
+  definitions to prototypes.
+* Warning cleanup (-Wall/-Wextra): remove dead variables, drop unused
+  result vars while keeping side-effecting calls, fix sign-compare casts,
+  and fix a latent bug in charset.c where (1<<31) overflowed to negative.
+  Drop a duplicate -lm link flag.
+* No functional change on Linux.
+
 New for 3.0.0-qbus
 ------------------------------------
 * Add HLS (.m3u8) recording.  If the URL ends in .m3u8, streamripper fetches
