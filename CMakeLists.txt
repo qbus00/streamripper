@@ -204,8 +204,10 @@ IF (IBERTY_FOUND)
 ENDIF (IBERTY_FOUND)
 
 IF (OGG_FOUND AND VORBIS_FOUND)
-  SET (STREAMRIPPER_LIBS ${STREAMRIPPER_LIBS} ${OGG_LIBRARIES}
-    ${VORBIS_LIBRARIES})
+  ## Order matters for static linking: vorbis depends on ogg, so vorbis must
+  ## come first (the library that needs symbols before the one providing them).
+  SET (STREAMRIPPER_LIBS ${STREAMRIPPER_LIBS} ${VORBIS_LIBRARIES}
+    ${OGG_LIBRARIES})
 ENDIF (OGG_FOUND AND VORBIS_FOUND)
 
 IF (SR_SSL_LIBS)
