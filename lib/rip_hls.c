@@ -40,6 +40,7 @@
 #define HLS_MAX_REDIRECT 5
 #define HLS_FETCH_CHUNK  32768
 #define HLS_MAX_SEGMENTS 4096   /* per playlist refresh */
+#define HLS_MAX_FETCH    (128 * 1024 * 1024)  /* cap a single GET (safety) */
 
 /*****************************************************************************
  * URL helpers
@@ -60,6 +61,18 @@ hls_url_is_m3u8 (const char *url)
 	return 1;
     /* Also treat an explicit ...m3u8 without the dot? No -- require .m3u8. */
     (void) dot; (void) scheme;
+    return 0;
+}
+
+/* Case-insensitive substring test (glib's g_ascii_strncasecmp, ASCII only). */
+static int
+ci_contains (const char *hay, const char *needle)
+{
+    size_t nl = strlen (needle);
+    if (!hay) return 0;
+    for (; *hay; hay++)
+	if (g_ascii_strncasecmp (hay, needle, nl) == 0)
+	    return 1;
     return 0;
 }
 
@@ -238,6 +251,10 @@ hls_http_get (RIP_MANAGER_INFO *rmi, const char *url,
 	if (!rmi->started) { free (body); socklib_close (&sock); return SR_ERROR_ABORT_PIPE_SIGNALLED; }
 	if (content_length >= 0 && len >= content_length)
 	    break;
+	if (len >= HLS_MAX_FETCH) {
+	    debug_printf ("hls_http_get: hit %d-byte cap, stopping\n", HLS_MAX_FETCH);
+	    break;
+	}
 	if (len + HLS_FETCH_CHUNK + 1 > cap) {
 	    int ncap = cap ? cap * 2 : (HLS_FETCH_CHUNK * 4);
 	    while (ncap < len + HLS_FETCH_CHUNK + 1) ncap *= 2;
@@ -358,6 +375,74 @@ hls_wait (RIP_MANAGER_INFO *rmi, int seconds)
 }
 
 /*****************************************************************************
+ * Content-based detection
+ *****************************************************************************/
+/* Probe a URL to decide whether it is an HLS playlist, using the response
+   Content-Type and a bounded sniff of the body -- without reading a whole
+   (possibly endless) shoutcast stream.  Uses a short-lived connection. */
+static int
+hls_probe (RIP_MANAGER_INFO *rmi, const char *url)
+{
+    HSOCKET sock;
+    char host[MAX_HOST_LEN], path[HLS_MAX_URL];
+    int port, ssl, ret, is_hls = 0;
+    char req[HLS_MAX_URL + 256];
+    char header[MAX_HEADER_LEN];
+    char body[2048];
+
+    if (hls_parse_url (url, host, sizeof(host), &port, path, sizeof(path), &ssl) != 0)
+	return 0;
+    if (socklib_open (&sock, host, port,
+		      rmi->prefs->if_name[0] ? rmi->prefs->if_name : NULL,
+		      rmi->prefs->timeout, ssl, GET_SSL_VERIFY (rmi->prefs->flags))
+	!= SR_SUCCESS)
+	return 0;
+
+    snprintf (req, sizeof(req),
+	      "GET %s HTTP/1.0\r\nHost: %s:%d\r\nUser-Agent: %s\r\n"
+	      "Accept: */*\r\nConnection: close\r\n\r\n",
+	      path, host, port,
+	      rmi->prefs->useragent[0] ? rmi->prefs->useragent : "Streamripper/1.x");
+    if (socklib_sendall (&sock, req, strlen(req)) < 0) {
+	socklib_close (&sock);
+	return 0;
+    }
+
+    if (socklib_read_header (rmi, &sock, header, sizeof(header)) == SR_SUCCESS) {
+	/* 1. Content-Type: every HLS MIME type contains "mpegurl"
+	      (application/vnd.apple.mpegurl, application/x-mpegurl, ...). */
+	if (ci_contains (header, "mpegurl")) {
+	    is_hls = 1;
+	} else {
+	    /* 2. Sniff a bounded body prefix for an HLS-specific #EXT-X- tag
+		  (plain .m3u/.pls playlists never contain these). */
+	    ret = socklib_recvall (rmi, &sock, body, sizeof(body) - 1,
+				   rmi->prefs->timeout);
+	    if (ret > 0) {
+		body[ret] = 0;
+		if (strstr (body, "#EXT-X-") != NULL)
+		    is_hls = 1;
+	    }
+	}
+    }
+    socklib_close (&sock);
+    debug_printf ("hls_probe(%s) -> %d\n", url, is_hls);
+    return is_hls;
+}
+
+/* Decide whether to record `url` as HLS.  Detection is content-based: we
+   probe the server (Content-Type + body sniff for #EXT-X-) regardless of the
+   URL extension.  This means a URL that merely *looks* like HLS (ends in
+   .m3u8) but actually serves a standard stream is NOT treated as HLS -- it
+   falls through to the normal shoutcast/icecast path.  The .m3u8 extension is
+   only a hint used to prefer this probe when nothing else applies. */
+int
+hls_detect (RIP_MANAGER_INFO *rmi, const char *url)
+{
+    return hls_probe (rmi, url);
+}
+
+/*****************************************************************************
  * Main HLS rip
  *****************************************************************************/
 error_code
@@ -386,6 +471,12 @@ hls_rip (RIP_MANAGER_INFO *rmi)
     ret = hls_http_get (rmi, media_url, &pl, &pllen, 0);
     if (ret != SR_SUCCESS)
 	return ret;
+    if (!strstr (pl, "#EXTM3U")) {
+	/* Not actually an HLS playlist (shouldn't happen post-detection). */
+	debug_printf ("HLS: %s has no #EXTM3U; not a playlist\n", media_url);
+	free (pl);
+	return SR_ERROR_CANT_PARSE_M3U;
+    }
     if (hls_is_master (pl)) {
 	char variant[HLS_MAX_URL];
 	if (hls_pick_variant (pl, media_url, variant, sizeof(variant)) == 0) {

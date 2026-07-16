@@ -12,8 +12,13 @@
 #include "rip_manager.h"
 
 /* True if the URL looks like an HLS playlist (ends in .m3u8, ignoring any
-   ?query). */
+   ?query).  Fast, no network. */
 int hls_url_is_m3u8 (const char *url);
+
+/* Decide whether to record `url` as HLS.  Uses the .m3u8 extension as a fast
+   path; otherwise probes the server (Content-Type + body sniff for #EXT-X-).
+   May open a short-lived connection. */
+int hls_detect (RIP_MANAGER_INFO *rmi, const char *url);
 
 /* Record an HLS stream: resolve the playlist (master -> media), then poll the
    media playlist and append each new segment's bytes to a single output file

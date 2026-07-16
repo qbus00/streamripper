@@ -232,7 +232,7 @@ ripthread (void *thread_arg)
 
     /* HLS (.m3u8) streams use a completely different transport (playlist +
        segments) than shoutcast/icecast, so they take their own path. */
-    if (hls_url_is_m3u8 (rmi->prefs->url)) {
+    if (hls_detect (rmi, rmi->prefs->url)) {
 	rmi->status_callback (rmi, RM_STARTED, (void *)NULL);
 	callback_post_status (rmi, RM_STATUS_RIPPING);
 	threadlib_signal_sem (&rmi->started_sem);
