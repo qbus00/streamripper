@@ -29,6 +29,7 @@ SET (STREAMRIPPER_LIB_SRC
 	ripstream_mp3.c ripstream_mp3.h
 	ripstream_ogg.c
 	rip_manager.c rip_manager.h
+	rip_hls.c rip_hls.h
 	socklib.c socklib.h
 	threadlib.c threadlib.h
 	track_info.c track_info.h

@@ -1,3 +1,15 @@
+New for 2.1.0-qbus
+------------------------------------
+* Add HLS (.m3u8) recording.  If the URL ends in .m3u8, streamripper fetches
+  the playlist (following a master playlist to its first variant), then polls
+  the media playlist and appends each new segment's bytes to one output file
+  until stopped (-l / Ctrl-C) or a VOD playlist ends.  Segments are
+  concatenated as-is (no demux); works over http and https.  Single-file only
+  (no ICY metadata / track splitting).  Output is written segment-by-segment
+  so an interrupted rip stays playable.  New lib/rip_hls.c.
+* Drop Windows/Winamp support (winamp_plugin/, win32/, wstreamripper); this
+  fork targets Linux and macOS only.
+
 New for 2.0.1-qbus
 ------------------------------------
 * Support https:// streams through an HTTP proxy (-p) via CONNECT tunneling.

@@ -18,6 +18,8 @@ can also run a local relay server so you can listen while you record.
 ## Highlights
 
 - 🎧 Rips mp3 / aac / nsv / ogg streams, split into per-track files
+- 📺 **HLS (`.m3u8`) streams** — polls the playlist and concatenates media
+  segments into one file (live or VOD; http and https)
 - 🔒 **`https://` streams supported** — TLS via OpenSSL, opt-in certificate
   verification (`--ssl-verify`)
 - 📻 Built-in relay server so you can listen while ripping
@@ -43,6 +45,27 @@ streamripper URL -r 8000
 
 > **Tip:** some CDNs reject the default user-agent. If a stream connects but
 > then fails to read a header, add `-u "WinampMPEG/5.0"`.
+
+## HLS (`.m3u8`)
+
+If the URL ends in `.m3u8`, streamripper records it as HLS: it fetches the
+playlist (following a master playlist to its first variant), then polls the
+media playlist and appends each **new segment**'s bytes to a single output
+file until you stop it (`-l`, Ctrl-C) or a VOD playlist ends.
+
+```sh
+streamripper "https://example.com/radio/playlist.m3u8" -d ~/rec -a Show.aac -A -l 3600
+```
+
+Notes:
+- Segments are concatenated **as-is** (no demux/transcode). HLS audio is
+  usually MPEG-TS or raw AAC; the result plays in VLC/ffmpeg/most players.
+- Pick the output extension to match the segments via `-a name.ext`
+  (e.g. `.aac` or `.ts`); if you give no extension, `.ts` is used.
+- The file is written segment-by-segment, so an interrupted rip stays playable
+  up to the last complete segment.
+- Track splitting / ICY metadata don't apply to HLS — it's single-file.
+- HLS through an http proxy (`-p`) is not supported (direct fetch only).
 
 ## HTTPS / TLS
 

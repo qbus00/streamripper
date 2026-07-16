@@ -50,6 +50,7 @@
 #include "relaylib.h"
 #include "rip_manager.h"
 #include "ripstream.h"
+#include "rip_hls.h"
 #include "threadlib.h"
 #include "debug.h"
 #include "sr_compat.h"
@@ -228,6 +229,18 @@ ripthread (void *thread_arg)
     RIP_MANAGER_INFO* rmi = (RIP_MANAGER_INFO*) thread_arg;
     debug_ripthread (rmi);
     debug_stream_prefs (rmi->prefs);
+
+    /* HLS (.m3u8) streams use a completely different transport (playlist +
+       segments) than shoutcast/icecast, so they take their own path. */
+    if (hls_url_is_m3u8 (rmi->prefs->url)) {
+	rmi->status_callback (rmi, RM_STARTED, (void *)NULL);
+	callback_post_status (rmi, RM_STATUS_RIPPING);
+	threadlib_signal_sem (&rmi->started_sem);
+	ret = hls_rip (rmi);
+	if (ret != SR_SUCCESS && ret != SR_ERROR_ABORT_PIPE_SIGNALLED)
+	    callback_post_error (rmi, ret);
+	goto DONE;
+    }
 
     /* Connect to remote server */
     ret = start_ripping (rmi);
