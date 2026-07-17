@@ -151,9 +151,9 @@ Don\'t auto\-reconnect
 .RE
 Normally streamripper will be very aggressive and try to re\-connect to a dropped stream\&. This option disables this behavior\&.
 .PP
-\-l seconds
+\-l length
 .RS 4
-Run for a predetermined length of time, in seconds
+Run for a predetermined length of time, then exit\&. The length may be given as a plain number of seconds (\fB3600\fR), a number with a unit suffix \fBs\fR, \fBm\fR or \fBh\fR (\fB90s\fR, \fB12m\fR, \fB2h\fR), or in clock form \fBhh:mm\fR or \fBhh:mm:ss\fR (\fB1:30\fR is one hour thirty minutes, same as \fB1:30:00\fR)\&.
 .RE
 Usually, streamripper runs until it crashes\&. Or rather, I meant to say that it runs until you kill it, yes, I\'m sure that\'s what I meant\&. But you can instead tell streamripper to run for a certain length of time, and then exit using this flag\&.
 .PP

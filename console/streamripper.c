@@ -32,6 +32,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
 #include <math.h>
 #include <time.h>
 #include "srtypes.h"
@@ -289,7 +290,8 @@ print_usage (FILE* stream)
     fprintf(stream, "      -o (always|never|larger|version)    - When to write tracks in complete\n");
     fprintf(stream, "      -t             - Don't overwrite tracks in incomplete\n");
     fprintf(stream, "      -c             - Don't auto-reconnect\n");
-    fprintf(stream, "      -l seconds     - Number of seconds to run, otherwise runs forever\n");
+    fprintf(stream, "      -l length      - How long to run: seconds (3600), unit (90s/12m/2h),\n");
+    fprintf(stream, "                       or hh:mm[:ss] (1:30 or 1:30:00); else runs forever\n");
     fprintf(stream, "      -M megabytes   - Stop ripping after this many megabytes\n");
     fprintf(stream, "      -q [start]     - Add sequence number to output file\n");
     fprintf(stream, "      -u useragent   - Use a different UserAgent than \"Streamripper\"\n");
@@ -336,6 +338,70 @@ print_usage (FILE* stream)
  * port of it under Win32.. there probably is one, maybe i didn't look 
  * hard enough. 
  */
+/*
+ * Parse a recording-length argument (the value of -l) into seconds.
+ * Accepts three forms:
+ *   - a plain integer:            "3600"          -> 3600 seconds
+ *   - a value with a unit suffix: "90s" "12m" "2h"
+ *   - a clock form hh:mm[:ss]:    "1:30" (1h30m), "1:30:00", "01:05:09"
+ *     (the trailing :ss may be omitted -- "1:30" == "1:30:00")
+ * Returns the length in seconds, or -1 on a malformed argument.
+ */
+static long
+parse_duration_seconds (const char *s)
+{
+    if (s == NULL || *s == '\0')
+	return -1;
+
+    /* Clock form: any colon means hh:mm[:ss]. */
+    if (strchr (s, ':') != NULL) {
+	long parts[3] = {0, 0, 0};
+	int n = 0;
+	const char *p = s;
+	while (n < 3) {
+	    char *end;
+	    long v;
+	    if (!isdigit ((unsigned char) *p))
+		return -1;
+	    v = strtol (p, &end, 10);
+	    if (v < 0)
+		return -1;
+	    parts[n++] = v;
+	    p = end;
+	    if (*p == '\0')
+		break;
+	    if (*p != ':')
+		return -1;
+	    p++;
+	}
+	if (*p != '\0')			/* trailing junk or > 3 fields */
+	    return -1;
+	if (n == 2)			/* hh:mm */
+	    return parts[0] * 3600 + parts[1] * 60;
+	if (n == 3)			/* hh:mm:ss */
+	    return parts[0] * 3600 + parts[1] * 60 + parts[2];
+	return -1;			/* a lone "5:" is not valid */
+    }
+
+    /* Plain number, optionally with a single unit suffix s/m/h. */
+    {
+	char *end;
+	long v = strtol (s, &end, 10);
+	if (end == s || v < 0)
+	    return -1;
+	if (*end == '\0')		/* bare seconds */
+	    return v;
+	if (end[1] != '\0')		/* more than one trailing char */
+	    return -1;
+	switch (*end) {
+	case 's': case 'S': return v;
+	case 'm': case 'M': return v * 60;
+	case 'h': case 'H': return v * 3600;
+	default:            return -1;
+	}
+    }
+}
+
 static void
 parse_arguments (STREAM_PREFS* prefs, int argc, char **argv)
 {
@@ -421,8 +487,17 @@ parse_arguments (STREAM_PREFS* prefs, int argc, char **argv)
 	    break;
 	case 'l':
 	    i++;
-	    time(&m_stop_time);
-	    m_stop_time += atoi(argv[i]);
+	    {
+		long secs = parse_duration_seconds (argv[i]);
+		if (secs < 0) {
+		    fprintf (stderr, "Invalid -l length: '%s' "
+			     "(use seconds e.g. 3600, a unit e.g. 90s/12m/2h, "
+			     "or hh:mm[:ss] e.g. 1:30 or 1:30:00)\n", argv[i]);
+		    exit (1);
+		}
+		time (&m_stop_time);
+		m_stop_time += secs;
+	    }
 	    break;
 	case 'L':
 	    i++;

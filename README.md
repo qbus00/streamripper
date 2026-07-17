@@ -92,7 +92,7 @@ Notes:
 | `-s` | Don't make a subdirectory per stream |
 | `-a [file]` | Rip to a single file (with cue sheet) |
 | `-A` | Don't write individual tracks |
-| `-l seconds` | Stop after this many seconds |
+| `-l length` | How long to run: seconds (`3600`), a unit (`90s`/`12m`/`2h`), or `hh:mm[:ss]` (`1:30` or `1:30:00`) |
 | `-r [[ip:]port]` | Run a relay server (default port 8000) |
 | `-R num` | Max relay clients (`0` = unlimited) |
 | `-u useragent` | Use a custom User-Agent |
