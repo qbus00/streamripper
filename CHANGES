@@ -1,3 +1,11 @@
+New for 3.1.0-qbus
+------------------------------------
+* -l now accepts flexible lengths in addition to a bare number of seconds:
+  a unit suffix (90s, 12m, 2h) or clock form hh:mm and hh:mm:ss (1:30 =
+  one hour thirty minutes, same as 1:30:00).  Malformed values are rejected
+  with a usage hint instead of being silently truncated.  Plain integers
+  keep working unchanged.
+
 New for 3.0.2-qbus
 ------------------------------------
 * HLS detection is now content-based and folded into the normal connect
