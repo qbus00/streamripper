@@ -1,3 +1,17 @@
+New for 3.2.0-qbus
+------------------------------------
+* HLS: AES-128 encrypted segments (#EXT-X-KEY:METHOD=AES-128) are now decrypted
+  transparently -- the key is fetched from the playlist key URI as a normal
+  player would, and each segment is AES-128-CBC decrypted (explicit IV or the
+  segment media-sequence number). SAMPLE-AES and other schemes are rejected
+  cleanly instead of writing undecodable data. Requires OpenSSL.
+* HLS: --hls-variant=best|worst|<bits-per-second> chooses which variant of a
+  master playlist to record (default: highest bandwidth). Previously the first
+  listed variant was always used.
+* Removed the long-dead Windows/MSVC build code (~900 lines across the tree).
+* Numeric options (-k -m -M -q -r -R) now validate their argument and reject
+  malformed or out-of-range values instead of silently treating them as 0.
+
 New for 3.1.0-qbus
 ------------------------------------
 * -l now accepts flexible lengths in addition to a bare number of seconds:

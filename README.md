@@ -127,7 +127,19 @@ This fork is designed to produce a single self-contained binary per target:
 | aarch64 Linux | `streamripper-linux-arm64` | fully static; 64-bit ARM only (not armv7) |
 | Apple Silicon macOS (M1–M5) | `streamripper-macos-arm64` | no Homebrew needed at runtime |
 
-Build them yourself with the scripts below (they aren't checked into the repo).
+The release assets are gzipped; `gunzip` and `chmod +x` before running, or
+build them yourself with the scripts below.
+
+> **macOS Gatekeeper:** the mac binary is not code-signed or notarized, so on
+> first run macOS quarantines it (*"cannot be opened because the developer
+> cannot be verified"*). Clear the quarantine flag once after downloading:
+>
+> ```sh
+> xattr -d com.apple.quarantine streamripper-macos-arm64
+> ```
+>
+> (You can also allow it via *System Settings → Privacy & Security → Open
+> Anyway*.) A binary you compile yourself is never quarantined.
 
 ## Building
 

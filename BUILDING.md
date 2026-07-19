@@ -99,6 +99,12 @@ brew install cmake pkg-config glib pcre2 gettext openssl@3 libogg libvorbis
 # -> dist/streamripper-macos-arm64   (runs on any Apple Silicon Mac, M1..M5)
 ```
 
+A binary you build yourself runs without any Gatekeeper prompt. A binary
+**downloaded** from the releases page is quarantined by macOS because it is not
+code-signed/notarized; clear the flag once with
+`xattr -d com.apple.quarantine streamripper-macos-arm64` (or approve it under
+*System Settings → Privacy & Security → Open Anyway*).
+
 ---
 
 ## CMake options
