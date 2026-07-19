@@ -520,6 +520,7 @@ prefs_get_stream_defaults (STREAM_PREFS* prefs)
     prefs->wav_output = 0;
     prefs->no_cue = 0;
     prefs->hls_mode = HLS_MODE_AUTO;
+    prefs->hls_variant = HLS_VARIANT_BEST;
 
     // Defaults for splitpoint - times are in ms
     prefs->sp_opt.xs = 1;

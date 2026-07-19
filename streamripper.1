@@ -290,6 +290,11 @@ Force HLS (\&.m3u8) handling, overriding autodetection\&.
 Force normal\-stream handling, disabling HLS autodetection\&.
 .RE
 .PP
+\-\-hls\-variant=\fIV\fR
+.RS 4
+For an HLS master playlist, choose which variant stream to record: \fBbest\fR (the highest advertised BANDWIDTH; the default), \fBworst\fR (the lowest), or a target bandwidth in bits/s (the highest variant not exceeding it, else the lowest)\&. AES\-128 encrypted segments (\fB#EXT\-X\-KEY:METHOD=AES\-128\fR) are decrypted automatically using the key fetched from the playlist's key URI; SAMPLE\-AES and other schemes are not supported\&.
+.RE
+.PP
 \-\-wav
 .RS 4
 Decode each ripped mp3 track and write it as a 16\-bit PCM WAV file instead of mp3\&. Applies to individual tracks from mp3 streams only (not to aac/ogg streams or single\-file/relay output)\&.

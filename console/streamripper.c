@@ -309,6 +309,8 @@ print_usage (FILE* stream)
     fprintf(stream, "      --http10       - Use HTTP/1.0 (for servers that mishandle HTTP/1.1)\n");
     fprintf(stream, "      --hls          - Force HLS (.m3u8) handling (override autodetection)\n");
     fprintf(stream, "      --no-hls       - Force normal-stream handling (disable HLS autodetection)\n");
+    fprintf(stream, "      --hls-variant=V- For HLS master playlists, pick variant: best (default),\n");
+    fprintf(stream, "                       worst, or a target bandwidth in bits/s (e.g. 128000)\n");
     fprintf(stream, "      --wav          - Decode mp3 tracks and write .wav files\n");
     fprintf(stream, "      --no-cue       - Don't write .cue sheet files\n");
     fprintf(stream, "TLS opts (for https:// stream URLs):\n");
@@ -619,6 +621,26 @@ parse_extended_options (STREAM_PREFS* prefs, char* rule)
     }
     if (!strcmp(rule,"no-hls") || !strcmp(rule,"no_hls")) {
 	prefs->hls_mode = HLS_MODE_OFF;
+	return;
+    }
+
+    /* Which variant of a master playlist to record: best/worst/<bandwidth> */
+    if (!strncmp(rule,"hls-variant=",12) || !strncmp(rule,"hls_variant=",12)) {
+	const char *v = rule + 12;
+	if (!strcmp(v,"best")) {
+	    prefs->hls_variant = HLS_VARIANT_BEST;
+	} else if (!strcmp(v,"worst")) {
+	    prefs->hls_variant = HLS_VARIANT_WORST;
+	} else {
+	    char *end;
+	    long bw = strtol (v, &end, 10);
+	    if (end == v || *end != '\0' || bw < 0) {
+		fprintf (stderr, "Invalid --hls-variant: '%s' "
+			 "(use best, worst, or a bandwidth in bits/s)\n", v);
+		exit (1);
+	    }
+	    prefs->hls_variant = bw;
+	}
 	return;
     }
 

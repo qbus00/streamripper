@@ -129,6 +129,8 @@ errors_init (void)
     SET_ERR_STR("This streamripper was built without TLS support, so https\n"
 		"streams cannot be opened. Rebuild with OpenSSL enabled.", 0x47);
     SET_ERR_STR("SR_ERROR_IS_HLS (internal)", 0x48);
+    SET_ERR_STR("HLS stream uses segment encryption this build can't decode\n"
+		"(only AES-128 is supported, and only with OpenSSL enabled).", 0x49);
 }
 
 char*

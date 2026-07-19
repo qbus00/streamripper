@@ -36,6 +36,10 @@
 #include "debug.h"
 #include "callback.h"
 
+#if defined(HAVE_OPENSSL)
+#include <openssl/evp.h>
+#endif
+
 #define HLS_MAX_URL      2048
 #define HLS_MAX_REDIRECT 5
 #define HLS_FETCH_CHUNK  32768
@@ -275,6 +279,175 @@ hls_http_get (RIP_MANAGER_INFO *rmi, const char *url,
 }
 
 /*****************************************************************************
+ * AES-128 segment encryption (#EXT-X-KEY)
+ *****************************************************************************/
+#define HLS_KEY_NONE    0
+#define HLS_KEY_AES128  1
+#define HLS_KEY_UNSUP   2   /* SAMPLE-AES or an unknown METHOD */
+
+typedef struct {
+    int  method;                 /* HLS_KEY_* -- applies to following segments */
+    char uri[HLS_MAX_URL];       /* key URI as written in the playlist */
+    unsigned char key[16];       /* fetched key bytes */
+    int  have_key;               /* key[] valid for the current uri */
+    int  iv_explicit;            /* an explicit IV= was given */
+    unsigned char iv[16];
+} hls_key_state;
+
+static int
+hls_hexval (int c)
+{
+    if (c >= '0' && c <= '9') return c - '0';
+    if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+    if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+    return -1;
+}
+
+/* Parse a hex string (optionally 0x-prefixed) of exactly 16 bytes into
+   out[16].  Returns 0 on success. */
+static int
+hls_parse_iv (const char *s, unsigned char out[16])
+{
+    int i;
+    if (s[0] == '0' && (s[1] == 'x' || s[1] == 'X'))
+	s += 2;
+    for (i = 0; i < 16; i++) {
+	int hi = hls_hexval ((unsigned char) s[2*i]);
+	int lo = hls_hexval ((unsigned char) s[2*i + 1]);
+	if (hi < 0 || lo < 0) return -1;
+	out[i] = (unsigned char)((hi << 4) | lo);
+    }
+    return 0;
+}
+
+/* Update the key state from an #EXT-X-KEY line.  The key bytes themselves are
+   fetched lazily (hls_fetch_key), since the URI is often shared by many
+   segments. */
+static void
+hls_parse_key_line (const char *line, hls_key_state *ks)
+{
+    const char *m, *u, *iv;
+
+    m = strstr (line, "METHOD=");
+    if (!m) return;
+    m += 7;
+    if (g_ascii_strncasecmp (m, "NONE", 4) == 0) {
+	ks->method = HLS_KEY_NONE;
+	ks->have_key = 0;
+	ks->iv_explicit = 0;
+	ks->uri[0] = 0;
+	return;
+    }
+    if (g_ascii_strncasecmp (m, "AES-128", 7) == 0)
+	ks->method = HLS_KEY_AES128;
+    else
+	ks->method = HLS_KEY_UNSUP;
+
+    /* URI="..." */
+    u = strstr (line, "URI=\"");
+    if (u) {
+	char newuri[HLS_MAX_URL];
+	const char *e;
+	u += 5;
+	e = strchr (u, '"');
+	if (e && (size_t)(e - u) < sizeof(newuri)) {
+	    memcpy (newuri, u, e - u);
+	    newuri[e - u] = 0;
+	    if (strcmp (newuri, ks->uri) != 0) {
+		snprintf (ks->uri, sizeof(ks->uri), "%s", newuri);
+		ks->have_key = 0;   /* URI changed -> refetch */
+	    }
+	}
+    }
+
+    /* IV=0x... (optional; if absent the segment sequence number is used) */
+    iv = strstr (line, "IV=");
+    ks->iv_explicit = (iv && hls_parse_iv (iv + 3, ks->iv) == 0) ? 1 : 0;
+}
+
+#if defined(HAVE_OPENSSL)
+/* Fetch (and cache) the 16-byte AES key referenced by ks, resolving its URI
+   against the media-playlist base.  Returns 0 on success. */
+static error_code
+hls_fetch_key (RIP_MANAGER_INFO *rmi, hls_key_state *ks, const char *base)
+{
+    char keyurl[HLS_MAX_URL];
+    char *body = NULL;
+    int blen = 0;
+    error_code ret;
+
+    if (ks->have_key)
+	return SR_SUCCESS;
+    if (!ks->uri[0])
+	return SR_ERROR_HLS_UNSUPPORTED_CRYPT;
+    hls_resolve_url (base, ks->uri, keyurl, sizeof(keyurl));
+    ret = hls_http_get (rmi, keyurl, &body, &blen, 0);
+    if (ret != SR_SUCCESS) { free (body); return ret; }
+    if (blen < 16) { free (body); return SR_ERROR_HLS_UNSUPPORTED_CRYPT; }
+    memcpy (ks->key, body, 16);
+    free (body);
+    ks->have_key = 1;
+    debug_printf ("HLS: fetched AES-128 key (%s)\n", keyurl);
+    return SR_SUCCESS;
+}
+
+/* Compute the IV for a given segment: the explicit IV if present, otherwise
+   the segment's media sequence number as a 128-bit big-endian integer. */
+static void
+hls_segment_iv (const hls_key_state *ks, long seq, unsigned char out[16])
+{
+    if (ks->iv_explicit) {
+	memcpy (out, ks->iv, 16);
+	return;
+    }
+    memset (out, 0, 16);
+    {
+	unsigned long long v = (unsigned long long) seq;
+	int i;
+	for (i = 15; i >= 8 && v; i--) {
+	    out[i] = (unsigned char)(v & 0xff);
+	    v >>= 8;
+	}
+    }
+}
+
+/* AES-128-CBC decrypt with PKCS#7 padding removal.  Allocates *out.
+   Returns 0 on success, -1 on error (bad padding/length/OpenSSL failure). */
+static int
+hls_aes_decrypt (const unsigned char key[16], const unsigned char iv[16],
+		 const unsigned char *in, int inlen,
+		 unsigned char **out, int *outlen)
+{
+    EVP_CIPHER_CTX *ctx;
+    unsigned char *buf;
+    int len = 0, total = 0;
+
+    *out = NULL; *outlen = 0;
+    if (inlen <= 0 || (inlen % 16) != 0)
+	return -1;                       /* CBC ciphertext must be block-aligned */
+    buf = malloc (inlen + 16);
+    if (!buf) return -1;
+    ctx = EVP_CIPHER_CTX_new ();
+    if (!ctx) { free (buf); return -1; }
+    if (EVP_DecryptInit_ex (ctx, EVP_aes_128_cbc(), NULL, key, iv) != 1)
+	goto fail;
+    if (EVP_DecryptUpdate (ctx, buf, &len, in, inlen) != 1)
+	goto fail;
+    total = len;
+    if (EVP_DecryptFinal_ex (ctx, buf + total, &len) != 1)
+	goto fail;                       /* bad PKCS#7 padding */
+    total += len;
+    EVP_CIPHER_CTX_free (ctx);
+    *out = buf; *outlen = total;
+    return 0;
+fail:
+    EVP_CIPHER_CTX_free (ctx);
+    free (buf);
+    return -1;
+}
+#endif /* HAVE_OPENSSL */
+
+/*****************************************************************************
  * Playlist parsing
  *****************************************************************************/
 static int
@@ -283,31 +456,78 @@ hls_is_master (const char *pl)
     return strstr (pl, "#EXT-X-STREAM-INF") != NULL;
 }
 
-/* From a master playlist, resolve the first variant's media-playlist URL.
-   Returns 0 on success. */
+/* Pull the BANDWIDTH=<n> attribute out of an #EXT-X-STREAM-INF line.
+   Returns the bandwidth in bits/s, or 0 if absent/unparseable. */
+static long
+hls_streaminf_bandwidth (const char *line)
+{
+    const char *b = strstr (line, "BANDWIDTH=");
+    if (!b)
+	return 0;
+    return atol (b + 10);
+}
+
+/* From a master playlist, resolve a variant's media-playlist URL according to
+   want: HLS_VARIANT_BEST (highest BANDWIDTH), HLS_VARIANT_WORST (lowest), or a
+   target bandwidth (highest variant not exceeding it, else the lowest).  Ties
+   and missing BANDWIDTH fall back to playlist order.  Returns 0 on success. */
 static int
-hls_pick_variant (const char *pl, const char *base, char *out, int outsz)
+hls_pick_variant (const char *pl, const char *base, long want,
+		  char *out, int outsz)
 {
     const char *line = pl;
-    int after_streaminf = 0;
-    char buf[HLS_MAX_URL];
+    long cur_bw = 0;
+    int have_streaminf = 0;
+    /* Best candidate found so far. */
+    int have_pick = 0;
+    long pick_bw = 0;
+    char pick_uri[HLS_MAX_URL];
 
     while (*line) {
 	const char *eol = strpbrk (line, "\r\n");
 	size_t llen = eol ? (size_t)(eol - line) : strlen (line);
+	char buf[HLS_MAX_URL];
 	if (llen > 0 && llen < sizeof(buf)) {
 	    memcpy (buf, line, llen); buf[llen] = 0;
 	    if (g_ascii_strncasecmp (buf, "#EXT-X-STREAM-INF", 17) == 0) {
-		after_streaminf = 1;
-	    } else if (buf[0] != '#' && after_streaminf) {
-		hls_resolve_url (base, buf, out, outsz);
-		return 0;
+		cur_bw = hls_streaminf_bandwidth (buf);
+		have_streaminf = 1;
+	    } else if (buf[0] != '#' && have_streaminf) {
+		/* This line is the URI for the preceding STREAM-INF. */
+		int take = 0;
+		if (!have_pick) {
+		    take = 1;
+		} else if (want == HLS_VARIANT_BEST) {
+		    take = (cur_bw > pick_bw);
+		} else if (want == HLS_VARIANT_WORST) {
+		    take = (cur_bw < pick_bw);
+		} else {
+		    /* Target bandwidth: prefer the highest <= want; if the
+		       current pick already exceeds want, prefer anything lower
+		       (closer to, or under, the target). */
+		    if (pick_bw > want)
+			take = (cur_bw < pick_bw);
+		    else
+			take = (cur_bw > pick_bw && cur_bw <= want);
+		}
+		if (take) {
+		    snprintf (pick_uri, sizeof(pick_uri), "%s", buf);
+		    pick_bw = cur_bw;
+		    have_pick = 1;
+		}
+		have_streaminf = 0;
+		cur_bw = 0;
 	    }
 	}
 	if (!eol) break;
 	line = eol + 1;
     }
-    return -1;
+
+    if (!have_pick)
+	return -1;
+    debug_printf ("HLS variant selected: BANDWIDTH=%ld\n", pick_bw);
+    hls_resolve_url (base, pick_uri, out, outsz);
+    return 0;
 }
 
 /*****************************************************************************
@@ -377,6 +597,10 @@ hls_rip (RIP_MANAGER_INFO *rmi)
     error_code ret;
     int endlist = 0;
     unsigned long total = 0;
+    error_code crypt_err = SR_SUCCESS;  /* set if we hit undecodable encryption */
+    hls_key_state ks;
+
+    memset (&ks, 0, sizeof(ks));        /* method = HLS_KEY_NONE */
 
     /* HLS uses its own short-lived connections; keep rmi->stream_sock inert so
        rip_manager_stop()'s socklib_close() on it is a harmless no-op. */
@@ -399,7 +623,8 @@ hls_rip (RIP_MANAGER_INFO *rmi)
     }
     if (hls_is_master (pl)) {
 	char variant[HLS_MAX_URL];
-	if (hls_pick_variant (pl, media_url, variant, sizeof(variant)) == 0) {
+	if (hls_pick_variant (pl, media_url, rmi->prefs->hls_variant,
+			      variant, sizeof(variant)) == 0) {
 	    debug_printf ("HLS master -> variant: %s\n", variant);
 	    snprintf (media_url, sizeof(media_url), "%s", variant);
 	} else {
@@ -438,12 +663,20 @@ hls_rip (RIP_MANAGER_INFO *rmi)
 	    if (!got_mediaseq) media_seq = 0;
 	}
 
-	/* Walk segment URIs (non-#, non-blank lines). */
+	/* Walk the playlist: #EXT-X-KEY updates the active key; other non-#,
+	   non-blank lines are segment URIs. */
 	idx = 0;
 	while (*line && rmi->started) {
 	    const char *eol = strpbrk (line, "\r\n");
 	    size_t llen = eol ? (size_t)(eol - line) : strlen (line);
-	    if (llen > 0 && line[0] != '#') {
+	    if (llen > 0 && line[0] == '#') {
+		if (llen < HLS_MAX_URL
+		    && g_ascii_strncasecmp (line, "#EXT-X-KEY:", 11) == 0) {
+		    char kbuf[HLS_MAX_URL];
+		    memcpy (kbuf, line, llen); kbuf[llen] = 0;
+		    hls_parse_key_line (kbuf, &ks);
+		}
+	    } else if (llen > 0) {
 		char uri[HLS_MAX_URL], segurl[HLS_MAX_URL];
 		long seq = media_seq + idx;
 		idx++;
@@ -454,13 +687,46 @@ hls_rip (RIP_MANAGER_INFO *rmi)
 			hls_resolve_url (media_url, uri, segurl, sizeof(segurl));
 			ret = hls_http_get (rmi, segurl, &seg, &seglen, 0);
 			if (ret == SR_SUCCESS && seg && seglen > 0) {
-			    if (write (fd, seg, seglen) == (ssize_t) seglen) {
-				total += seglen;
-				callback_post_status (rmi, RM_STATUS_RIPPING);
+			    if (ks.method == HLS_KEY_NONE) {
+				if (write (fd, seg, seglen) == (ssize_t) seglen) {
+				    total += seglen;
+				    callback_post_status (rmi, RM_STATUS_RIPPING);
+				}
+			    } else if (ks.method == HLS_KEY_AES128) {
+#if defined(HAVE_OPENSSL)
+				ret = hls_fetch_key (rmi, &ks, media_url);
+				if (ret == SR_SUCCESS) {
+				    unsigned char iv[16], *plain = NULL;
+				    int plainlen = 0;
+				    hls_segment_iv (&ks, seq, iv);
+				    if (hls_aes_decrypt (ks.key, iv,
+					    (unsigned char*) seg, seglen,
+					    &plain, &plainlen) == 0) {
+					if (plainlen > 0
+					    && write (fd, plain, plainlen)
+					       == (ssize_t) plainlen) {
+					    total += plainlen;
+					    callback_post_status (rmi, RM_STATUS_RIPPING);
+					}
+					free (plain);
+				    } else {
+					debug_printf ("HLS: AES-128 decrypt failed (seq %ld)\n", seq);
+					crypt_err = SR_ERROR_HLS_UNSUPPORTED_CRYPT;
+				    }
+				} else {
+				    crypt_err = ret;   /* couldn't fetch key */
+				}
+#else
+				crypt_err = SR_ERROR_SSL_NOT_COMPILED;
+#endif
+			    } else {
+				/* SAMPLE-AES or unknown METHOD -- can't decode */
+				crypt_err = SR_ERROR_HLS_UNSUPPORTED_CRYPT;
 			    }
 			}
 			free (seg);
 			last_seq = seq;
+			if (crypt_err != SR_SUCCESS) break;
 			if (!rmi->started) break;
 		    }
 		}
@@ -468,6 +734,9 @@ hls_rip (RIP_MANAGER_INFO *rmi)
 	    if (!eol) break;
 	    line = eol + 1;
 	}
+
+	if (crypt_err != SR_SUCCESS)
+	    break;   /* undecodable encryption: stop and report below */
 
 	if (endlist)
 	    break;   /* VOD: downloaded everything */
@@ -492,5 +761,5 @@ hls_rip (RIP_MANAGER_INFO *rmi)
     free (pl);
     debug_printf ("HLS rip finished: %lu bytes -> %s\n", total, outpath);
     (void) endlist;
-    return SR_SUCCESS;
+    return crypt_err;   /* SR_SUCCESS unless we hit undecodable encryption */
 }

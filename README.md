@@ -53,7 +53,7 @@ HLS is **autodetected** from the response `Content-Type`
 works too, and a normal stream served at a `.m3u8` URL is *not* mistaken for
 HLS (its real audio content-type wins). Use `--hls` / `--no-hls` to force the
 choice. When recording HLS, streamripper fetches the playlist (following a
-master playlist to its first variant), then polls the media playlist and
+master playlist to the chosen variant), then polls the media playlist and
 appends each **new segment**'s bytes to a single output file until you stop it
 (`-l`, Ctrl-C) or a VOD playlist ends.
 
@@ -68,11 +68,20 @@ Notes:
   (e.g. `.aac` or `.ts`); if you give no extension, `.ts` is used.
 - The file is written segment-by-segment, so an interrupted rip stays playable
   up to the last complete segment.
+- **Master playlists:** by default the **highest-bandwidth** variant is
+  recorded. Choose with `--hls-variant=best|worst|<bits-per-second>` (e.g.
+  `--hls-variant=128000` picks the highest variant not exceeding 128 kbps).
+- **Encrypted segments:** `METHOD=AES-128` (`#EXT-X-KEY`) is decrypted
+  transparently — streamripper fetches the key from the playlist's key URI
+  (exactly as a normal player does) and decrypts each segment. This only works
+  when the key is fetchable without authentication. `METHOD=SAMPLE-AES` and
+  other schemes are **not** supported (the rip stops with an error rather than
+  writing undecodable data). Requires a build with OpenSSL.
 - Track splitting / ICY metadata don't apply to HLS — it's single-file.
 - HLS through an http proxy (`-p`) is not supported (direct fetch only).
-- Only `-d`, `-a`, `-l`, `-u`, `-m`, and `--ssl-verify` affect an HLS rip.
-  Pipeline options (`--wav`, `--no-cue`, `-A`, `-i`, `-s`, `--xs-*`, relay `-r`)
-  don't apply and are silently ignored.
+- Only `-d`, `-a`, `-l`, `-u`, `-m`, `--ssl-verify`, and `--hls-variant` affect
+  an HLS rip. Pipeline options (`--wav`, `--no-cue`, `-A`, `-i`, `-s`,
+  `--xs-*`, relay `-r`) don't apply and are silently ignored.
 
 ## HTTPS / TLS
 
@@ -100,6 +109,7 @@ Notes:
 | `--no-cue` | Don't write `.cue` sheet files |
 | `--http10` | Use HTTP/1.0 (for servers that mishandle HTTP/1.1) |
 | `--hls` / `--no-hls` | Force / disable HLS handling (override autodetection) |
+| `--hls-variant=V` | HLS master-playlist variant: `best` (default), `worst`, or a target bandwidth in bits/s |
 | `--ssl-verify` | Verify the TLS certificate for https streams |
 | `-m seconds` | Timeout before a stalled connection is dropped |
 

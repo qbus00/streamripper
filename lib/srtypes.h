@@ -127,6 +127,12 @@ typedef int error_code;
 #define HLS_MODE_FORCE	1	/* --hls: always record as HLS */
 #define HLS_MODE_OFF	2	/* --no-hls: always record as a normal stream */
 
+/* prefs.hls_variant: which variant of a master playlist to record.  A value
+   >= 0 is a target BANDWIDTH in bits/s (pick the highest variant not
+   exceeding it, else the lowest); the two sentinels pick the extremes. */
+#define HLS_VARIANT_BEST	(-1L)	/* highest BANDWIDTH (default) */
+#define HLS_VARIANT_WORST	(-2L)	/* lowest BANDWIDTH */
+
 /* 
  * IO_DATA_INPUT is a interface for socket input data, it has one 
  * method 'get_data' and is called by a "ripper" which is effectivly 
@@ -494,6 +500,8 @@ struct stream_prefs
     int wav_output;			// decode mp3 tracks and write .wav files
     int no_cue;				// don't create .cue sheet files
     int hls_mode;			// HLS_MODE_AUTO/FORCE/OFF (see below)
+    long hls_variant;			// HLS_VARIANT_BEST/WORST or a target
+					//  bandwidth in bits/s (master playlists)
     u_short relay_port;			// port to use for the relay server
 					//  GCS 3/30/07 change to u_short
     u_short max_port;			// highest port the relay server 
