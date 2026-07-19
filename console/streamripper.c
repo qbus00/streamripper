@@ -29,6 +29,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
+#include <limits.h>
 #include <math.h>
 #include <time.h>
 #include "srtypes.h"
@@ -398,6 +399,38 @@ parse_duration_seconds (const char *s)
     }
 }
 
+/*
+ * Parse an integer option value, enforcing an inclusive [min,max] range (pass
+ * LONG_MAX for "no upper bound").  On a malformed or out-of-range value, print
+ * an error naming the option and exit -- so bad input is rejected up front
+ * rather than silently turned into 0 by atoi().  'what' names the option in
+ * the message, e.g. "-m (timeout)".
+ */
+static long
+parse_int_opt (const char *s, const char *what, long min, long max)
+{
+    char *end;
+    long v = 0;
+
+    if (s == NULL || *s == '\0') {
+	end = NULL;
+	goto bad;
+    }
+    v = strtol (s, &end, 10);
+    if (*end != '\0' || v < min || v > max)
+	goto bad;
+    return v;
+
+bad:
+    if (max == LONG_MAX)
+	fprintf (stderr, "Invalid value for %s: '%s' (expected an integer >= %ld)\n",
+		 what, s ? s : "", min);
+    else
+	fprintf (stderr, "Invalid value for %s: '%s' (expected an integer %ld-%ld)\n",
+		 what, s ? s : "", min, max);
+    exit (1);
+}
+
 static void
 parse_arguments (STREAM_PREFS* prefs, int argc, char **argv)
 {
@@ -479,7 +512,7 @@ parse_arguments (STREAM_PREFS* prefs, int argc, char **argv)
 	    break;
 	case 'k':
 	    i++;
-	    prefs->dropcount = atoi(argv[i]);
+	    prefs->dropcount = parse_int_opt (argv[i], "-k (initial tracks to skip)", 0, LONG_MAX);
 	    break;
 	case 'l':
 	    i++;
@@ -501,11 +534,11 @@ parse_arguments (STREAM_PREFS* prefs, int argc, char **argv)
 	    break;
 	case 'm':
 	    i++;
-	    prefs->timeout = atoi(argv[i]);
+	    prefs->timeout = parse_int_opt (argv[i], "-m (timeout seconds)", 1, LONG_MAX);
 	    break;
  	case 'M':
  	    i++;
- 	    prefs->maxMB_rip_size = atoi(argv[i]);
+ 	    prefs->maxMB_rip_size = parse_int_opt (argv[i], "-M (megabytes)", 1, LONG_MAX);
 	    OPT_FLAG_SET(prefs->flags, OPT_CHECK_MAX_BYTES, 1);
  	    break;
 	case 'o':
@@ -531,7 +564,7 @@ parse_arguments (STREAM_PREFS* prefs, int argc, char **argv)
 	    if (i == (argc-1) || argv[i+1][0] == '-')
 		break;
 	    i++;
-	    prefs->count_start = atoi(argv[i]);
+	    prefs->count_start = parse_int_opt (argv[i], "-q (sequence start)", 0, LONG_MAX);
 	    break;
 	case 'r':
 	    OPT_FLAG_SET(prefs->flags, OPT_MAKE_RELAY, 1);
@@ -540,16 +573,16 @@ parse_arguments (STREAM_PREFS* prefs, int argc, char **argv)
 	    i++;
 	    c = strstr(argv[i], ":");
 	    if (NULL == c) {
-	    	prefs->relay_port = atoi(argv[i]);
+	    	prefs->relay_port = parse_int_opt (argv[i], "-r (relay port)", 1, 65535);
 	    } else {
 	    	*c = '\0';
 		strncpy(prefs->relay_ip, argv[i], SR_MAX_PATH);
-		prefs->relay_port = atoi(++c);
+		prefs->relay_port = parse_int_opt (++c, "-r (relay port)", 1, 65535);
  	    }
 	    break;
 	case 'R':
 	    i++;
-	    prefs->max_connections = atoi(argv[i]);
+	    prefs->max_connections = parse_int_opt (argv[i], "-R (max relay clients, 0=unlimited)", 0, LONG_MAX);
 	    break;
 	case 's':
 	    OPT_FLAG_SET(prefs->flags, OPT_SEPARATE_DIRS, 0);
