@@ -17,18 +17,12 @@
 #ifndef __COMPAT_H__
 #define __COMPAT_H__
 
-#if WIN32
-#include <direct.h>
-#include <windows.h>
-#include <process.h>
-#else
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include <semaphore.h>
 #include <pthread.h>
-#endif
 
 //
 // This file handles all portablity issues with streamripper
@@ -37,24 +31,6 @@
 // File Routines
 ////////////////////////////////////////// 
 
-#ifdef WIN32
-
-#define FHANDLE	HANDLE
-#define OpenFile(_filename_)	CreateFile(_filename_, GENERIC_READ,  	\
-		FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, 	\
-		FILE_ATTRIBUTE_NORMAL, NULL)
-// #define CloseFile(_fhandle_) 	CloseHandle(_fhandle_)
-#define TruncateFile(_filename_) \
-       CloseFile(CreateFile(_filename_, GENERIC_WRITE, \
-		FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, \
-                TRUNCATE_EXISTING, \
-		FILE_ATTRIBUTE_NORMAL, NULL))
-//#define MoveFile(_oldfile_, _newfile_)     MoveFile(_oldfile_, _newfile_)
-#define INVALID_FHANDLE 	INVALID_HANDLE_VALUE
-
-#define close _close
-
-#else
 
 #define FHANDLE	int
 // #define OpenFile(_filename_)	open(_filename_, O_RDWR | O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH)
@@ -64,25 +40,8 @@
 // #define DeleteFile(_file_)  	(!unlink(_file_))
 #define INVALID_FHANDLE 	-1
 
-#endif 
 
 // Thread Routines
-#if WIN32
-#define THREAD_HANDLE	HANDLE
-#define BeginThread(_thandle_, callback, arg) \
-               {_thandle_ = (THREAD_HANDLE)_beginthread((void*) callback, 0, (void*) arg);}
-#define WaitForThread(_thandle_)	WaitForSingleObject(_thandle_, INFINITE);
-#define DestroyThread(_thandle_)	CloseHandle(_thandle_)
-
-#define HSEM			HANDLE
-#define	SemInit(_s_)	{_s_ = CreateEvent(NULL, TRUE, FALSE, NULL);}
-#define	SemWait(_s_)	{WaitForSingleObject(_s_, INFINITE); ResetEvent(_s_);}
-#define	SemPost(_s_)	SetEvent(_s_)
-#define	SemDestroy(_s_)	CloseHandle(_s_)
-#define sleep(x) 	Sleep(1000*x)
-
-
-#else
 
 #define THREAD_HANDLE		pthread_t
 #define BeginThread(_thandle_, callback, arg) \
@@ -111,25 +70,16 @@
 
 #define Sleep(x) 	usleep(1000*x)
 
-#endif
 
 // Socket Routines
 ////////////////////////////////////////// 
 
-#if WIN32
-//#define EAGAIN          WSAEWOULDBLOCK
-#define EWOULDBLOCK     WSAEWOULDBLOCK
-#else
 #define closesocket     close
 #define SOCKET_ERROR	-1
 #define WSACleanup()
-#endif
 
 // Other stuff
 ////////////////////////////////////////// 
 
-#if WIN32
-#define snprintf _snprintf
-#endif
 
 #endif // __COMPAT_H__

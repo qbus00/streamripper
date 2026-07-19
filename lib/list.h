@@ -3,9 +3,6 @@
 
 /* GCS: I ripped this off from the linux kernel.  Minor modifications. */
 
-#if defined (WIN32)
-#define inline __inline
-#endif
 
 /* #define prefetch(a) (a) */
 #define prefetch(a) 0

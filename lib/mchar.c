@@ -43,15 +43,9 @@
 #include "srtypes.h"
 #include "mchar.h"
 
-#if WIN32
-    #define ICONV_WCHAR "UCS-2-INTERNAL"
-    #define vsnprintf _vsnprintf
-//    #define vswprintf _vsnwprintf
-#else
     #define ICONV_WCHAR "WCHAR_T"
     /* This prototype is missing in some systems */
 //    int vswprintf (wchar_t * ws, size_t n, const wchar_t * format, va_list arg);
-#endif
 
 
 /*****************************************************************************
@@ -548,16 +542,6 @@ default_codeset (void)
 	debug_printf ("Found default codeset %s\n", fromcode);
     }
 
-#if defined (WIN32)
-    {
-	/* This is just for debugging */
-	LCID lcid;
-	lcid = GetSystemDefaultLCID ();
-	debug_printf ("SystemDefaultLCID: %04x\n", lcid);
-	lcid = GetUserDefaultLCID ();
-	debug_printf ("UserDefaultLCID: %04x\n", lcid);
-    }
-#endif
 
     // #if defined HAVE_ICONV
     //     debug_printf ("Have iconv.\n");

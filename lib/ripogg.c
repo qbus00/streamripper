@@ -380,13 +380,8 @@ vorbis_process (
         ogg_int64_t gp = ogg_page_granulepos (page);
         if (gp > 0) {
             if (gp < inf->lastgranulepos)
-#ifdef _WIN32
-                warn (_("Warning: granulepos in stream %d decreases from %I64d to %I64d"),
-		    stream->num, inf->lastgranulepos, gp);
-#else
 	    warn (_("Warning: granulepos in stream %d decreases from %lld to %lld"),
 		stream->num, inf->lastgranulepos, gp);
-#endif
             inf->lastgranulepos = gp;
         } else   {
             warn (_("Negative granulepos on vorbis stream outside of headers. This file was created by a buggy encoder\n"));
@@ -411,19 +406,11 @@ vorbis_end (stream_processor *stream)
     seconds = (long) time - minutes * 60;
     bitrate = inf->bytes * 8 / time / 1000.0;
 
-#ifdef _WIN32
-    debug_printf ("Vorbis stream %d:\n"
-                  "\tTotal data length: %I64d bytes\n"
-                  "\tPlayback length: %ldm:%02lds\n"
-                  "\tAverage bitrate: %f kbps\n",
-                  stream->num, inf->bytes, minutes, seconds, bitrate);
-#else
     debug_printf ("Vorbis stream %d:\n"
                   "\tTotal data length: %lld bytes\n"
                   "\tPlayback length: %ldm:%02lds\n"
                   "\tAverage bitrate: %f kbps\n",
                   stream->num, inf->bytes, minutes, seconds, bitrate);
-#endif
 
     vorbis_comment_clear (&inf->vc);
     vorbis_info_clear (&inf->vi);

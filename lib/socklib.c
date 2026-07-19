@@ -19,9 +19,6 @@
 #include <stdlib.h>
 #include <errno.h>
 #include <time.h>
-#if WIN32
-#include <winsock2.h>
-#else
 #include <sys/time.h>
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -32,7 +29,6 @@
 #include <netdb.h>
 #include <unistd.h>
 #include <fcntl.h>
-#endif
 
 #if __UNIX__
 #include <arpa/inet.h>
@@ -53,10 +49,6 @@
 #endif
 
 
-#if WIN32
-#define DEFAULT_TIMEOUT		(15 * 1000)
-#define FIRST_READ_TIMEOUT	(30 * 1000)
-#endif
 
 
 /****************************************************************************
@@ -65,16 +57,6 @@
 error_code
 socklib_init()
 {
-#if WIN32
-    WORD wVersionRequested;
-    WSADATA wsaData;
-    int err;
-
-    wVersionRequested = MAKEWORD( 2, 2 );
-    err = WSAStartup( wVersionRequested, &wsaData );
-    if ( err != 0 )
-        return SR_ERROR_WIN32_INIT_FAILURE;
-#endif
 
     return SR_SUCCESS;
 }
@@ -83,9 +65,6 @@ socklib_init()
 error_code
 read_interface (char *if_name, uint32_t *addr)
 {
-#if defined (WIN32)
-    return -1;
-#else
     int fd;
     struct ifreq ifr;
 
@@ -103,7 +82,6 @@ read_interface (char *if_name, uint32_t *addr)
 	return -1;
     close(fd);
     return 0;
-#endif
 }
 
 #if defined(HAVE_OPENSSL)
@@ -290,20 +268,6 @@ socklib_open (HSOCKET *socket_handle, char *host, int port,
 	return SR_ERROR_CONNECT_FAILED;
     }
 
-#ifdef WIN32
-    {
-	struct timeval tv = {timeout, 0};
-	rc = setsockopt (socket_handle->s, SOL_SOCKET,  SO_RCVTIMEO, 
-			 (char *)&tv, sizeof(struct timeval));
-	if (rc == SOCKET_ERROR) {
-	    debug_printf ("setsockopt failed\n");
-	    /* GCS Added... */
-	    WSACleanup ();
-	    closesocket (socket_handle->s);
-	    return SR_ERROR_CANT_SET_SOCKET_OPTIONS;
-	}
-    }
-#endif
 
     socket_handle->closed = FALSE;
 
@@ -366,20 +330,12 @@ socklib_read_header(RIP_MANAGER_INFO* rmi, HSOCKET *socket_handle,
 		    char *buffer, int size)
 {
     int i;
-#ifdef WIN32
-    int timeout;
-#endif
     int ret;
     char *t;
 
     if (socket_handle->closed)
 	return SR_ERROR_SOCKET_CLOSED;
 
-#ifdef WIN32
-    timeout = 2 * rmi->prefs->timeout * 1000;  /* Convert sec to msec */
-    if (setsockopt (socket_handle->s, SOL_SOCKET,  SO_RCVTIMEO, (char *)&timeout, sizeof(int)) == SOCKET_ERROR)
-	return SR_ERROR_CANT_SET_SOCKET_OPTIONS;
-#endif
 
     memset(buffer, 0, size);
     for (i = 0; i < size; i++)
@@ -419,11 +375,6 @@ socklib_read_header(RIP_MANAGER_INFO* rmi, HSOCKET *socket_handle,
 
     buffer[i] = '\0';
 
-#ifdef WIN32
-    timeout = rmi->prefs->timeout * 1000;  /* Convert sec to msec */
-    if (setsockopt (socket_handle->s, SOL_SOCKET,  SO_RCVTIMEO, (char *)&timeout, sizeof(timeout)) == SOCKET_ERROR)
-	return SR_ERROR_CANT_SET_SOCKET_OPTIONS;
-#endif
 
     return SR_SUCCESS;
 }

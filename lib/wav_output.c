@@ -25,7 +25,6 @@
 
 /* WAV output is only implemented for the POSIX file-handle (int fd) build;
    the legacy Win32 build falls back to native output (no --wav). */
-#if !defined (WIN32)
 
 #include <unistd.h>
 #include "mad.h"
@@ -283,10 +282,3 @@ wav_encoder_close (void *handle, FHANDLE fp)
     return SR_SUCCESS;
 }
 
-#else  /* WIN32: --wav not supported, provide stubs */
-
-error_code wav_encoder_open  (void **handle, FHANDLE fp) { (void)fp; if (handle) *handle = 0; return SR_ERROR_PROGRAM_ERROR; }
-error_code wav_encoder_write (void *handle, const char *mp3, unsigned long size) { (void)handle;(void)mp3;(void)size; return SR_SUCCESS; }
-error_code wav_encoder_close (void *handle, FHANDLE fp) { (void)handle;(void)fp; return SR_SUCCESS; }
-
-#endif

@@ -15,10 +15,6 @@
  * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  */
 #include "sr_config.h"
-#if WIN32
-#include <winsock2.h>
-#include <ws2tcpip.h>	/* Required for MSVC 9 */
-#else
 #include <sys/time.h>
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -32,7 +28,6 @@
 #include <errno.h>
 #include <stdlib.h>
 #include <ctype.h>
-#endif
 
 #if __UNIX__
 #include <arpa/inet.h>
@@ -51,12 +46,6 @@
 #include "rip_manager.h"
 #include "cbuf3.h"
 
-#if defined (WIN32)
-#ifdef errno
-#undef errno
-#endif
-#define errno WSAGetLastError()
-#endif
 
 //#define BURST_AMOUNT (128*1024)
 //#define BURST_AMOUNT (64*1024)
@@ -221,15 +210,10 @@ swallow_receive (int sock)
 void
 make_nonblocking (int sock)
 {
-#if defined (WIN32)
-    long opt = 1;
-    ioctlsocket(sock, FIONBIO, &opt);
-#else
     int opt = fcntl(sock, F_GETFL);
     if (opt != SOCKET_ERROR) {
         fcntl(sock, F_SETFL, opt | O_NONBLOCK);
     }
-#endif
 }
 
 #if defined (commentout)
@@ -245,7 +229,6 @@ relaylib_set_response_header(char *http_header)
 }
 #endif
 
-#ifndef WIN32
 void
 catch_pipe(int code)
 {
@@ -253,7 +236,6 @@ catch_pipe(int code)
     //m_connected = FALSE;
     // JCBUG, not sure what to do about this
 }
-#endif
 
 error_code
 relaylib_start (RIP_MANAGER_INFO* rmi,
@@ -264,9 +246,6 @@ relaylib_start (RIP_MANAGER_INFO* rmi,
 		int have_metadata)
 {
     int ret;
-#ifdef WIN32
-    WSADATA wsd;
-#endif
     RELAYLIB_INFO* rli = &rmi->relaylib_info;
 
     /* GCS: These were globally initialized... */
@@ -279,22 +258,14 @@ relaylib_start (RIP_MANAGER_INFO* rmi,
 
     rmi->relay_list = g_queue_new ();
 
-#ifdef WIN32
-    if (WSAStartup(MAKEWORD(2,2), &wsd) != 0) {
-	debug_printf ("relaylib_init(): SR_ERROR_CANT_BIND_ON_PORT\n");
-        return SR_ERROR_CANT_BIND_ON_PORT;
-    }
-#endif
 
     if (relay_port < 1 || !port_used) {
 	debug_printf ("relaylib_init(): SR_ERROR_INVALID_PARAM\n");
         return SR_ERROR_INVALID_PARAM;
     }
 
-#ifndef WIN32
     // catch a SIGPIPE if send fails
     signal(SIGPIPE, catch_pipe);
-#endif
 
     rli->m_sem_not_connected = threadlib_create_sem();
     rmi->relay_list_sem = threadlib_create_sem();
@@ -356,13 +327,11 @@ try_port (RELAYLIB_INFO* rli, u_short port, char *if_name, char *relay_ip)
     local.sin_family = AF_INET;
     local.sin_port = htons(port);
 
-#ifndef WIN32
     {
         // Prevent port error when restarting quickly after a previous exit
         int opt = 1;
         setsockopt(rli->m_listensock, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
     }
-#endif
                         
     if (bind(rli->m_listensock, (struct sockaddr *)&local, sizeof(local)) == SOCKET_ERROR)
     {
@@ -769,10 +738,6 @@ relaylib_send (RIP_MANAGER_INFO* rmi, Relay_client *relay_client)
 	    if (err_errno == EWOULDBLOCK || err_errno == 0 
 		|| err_errno == 183)
 	    {
-#if defined (WIN32)
-		// Client is slow.  Retry later.
-		WSASetLastError (0);
-#endif
 	    } else {
 		debug_printf ("Relay: socket error is %d\n",errno);
 	    }

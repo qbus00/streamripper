@@ -17,10 +17,6 @@
 #ifndef __SR_CDK_H__
 #define __SR_CDK_H__
 
-#if defined (WIN32)
-#include <cdk.h>
-#else
 #include <cdk/cdk.h>
-#endif
 
 #endif

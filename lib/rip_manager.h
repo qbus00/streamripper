@@ -25,11 +25,7 @@
 
 #define SRVERSION	"3.1.0-qbus"
 
-#if defined (WIN32)
-#define SRPLATFORM      "windows"
-#else
 #define SRPLATFORM      "unix"
-#endif
 
 // Rip manager flags options
 #define OPT_AUTO_RECONNECT	0x00000001	// reconnect automatically if dropped

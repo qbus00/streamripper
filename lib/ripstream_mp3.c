@@ -19,10 +19,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#ifndef _WIN32
 #include <sys/types.h>
 #include <netinet/in.h>
-#endif
 #include "srtypes.h"
 #include "cbuf3.h"
 #include "findsep.h"
@@ -631,11 +629,7 @@ write_id3v2_frame (RIP_MANAGER_INFO *rmi,
     int rc;
     char bigbuf[HEADER_SIZE] = "";
     ID3V2frame id3v2frame;
-#ifndef WIN32
     uint32_t framesize = 0;
-#else
-    unsigned long int framesize = 0;
-#endif
 
     memset(&id3v2frame, '\000', sizeof(id3v2frame));
     strncpy(id3v2frame.id, tag_name, 4);

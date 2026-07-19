@@ -24,13 +24,8 @@
 #include "mchar.h"
 #include "debug.h"
 
-#if WIN32
-    #define vsnprintf _vsnprintf
-    #define vswprintf _vsnwprintf
-#else
     /* This prototype is missing in some systems */
     int vswprintf (wchar_t * ws, size_t n, const wchar_t * format, va_list arg);
-#endif
 
 /*****************************************************************************
  * Public functions
@@ -123,20 +118,4 @@ debug_printf (char* fmt, ...)
 void
 debug_print_error (void)
 {
-#if defined (WIN32)
-    LPVOID lpMsgBuf;
-    FormatMessage (
-	FORMAT_MESSAGE_ALLOCATE_BUFFER | 
-	FORMAT_MESSAGE_FROM_SYSTEM | 
-	FORMAT_MESSAGE_IGNORE_INSERTS,
-	NULL,
-	GetLastError(),
-	MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), // Default language
-	(LPTSTR) &lpMsgBuf,
-	0,
-	NULL 
-    );
-    debug_printf ("%s", lpMsgBuf);
-    LocalFree (lpMsgBuf);
-#endif
 }

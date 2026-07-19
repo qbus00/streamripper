@@ -16,13 +16,8 @@
  */
 #include <stdio.h>
 #include <stdlib.h>
-#if defined (WIN32)
-#include <process.h>
-#include <io.h>
-#else
 #include <unistd.h>
 #include <sys/wait.h>
-#endif
 #include <fcntl.h>
 #include <signal.h>
 #include <sys/types.h>
@@ -107,155 +102,7 @@ parse_external_byte (RIP_MANAGER_INFO* rmi, External_Process* ep,
 }
 
 
-/* ----------------------------- WIN32 FUNCTIONS ------------------------- */
-#if defined (WIN32)
-
- 
-External_Process*
-spawn_external (char* cmd)
-{
-    External_Process* ep;
-    HANDLE hChildStdinRd;
-    HANDLE hChildStdinWr;
-    HANDLE hChildStdoutWr;
-
-    SECURITY_ATTRIBUTES saAttr; 
-    PROCESS_INFORMATION piProcInfo; 
-    STARTUPINFO startup_info;
-    BOOL rc;
-    DWORD creation_flags;
-
-    ep = alloc_ep ();
-    if (!ep) return 0;
-
-    /* Set the bInheritHandle flag so pipe handles are inherited. */
-    saAttr.nLength = sizeof(SECURITY_ATTRIBUTES); 
-    saAttr.bInheritHandle = TRUE; 
-    saAttr.lpSecurityDescriptor = NULL; 
-
-    /* Create a pipe for the child process's STDOUT. */
-    if (!CreatePipe (&ep->mypipe, &hChildStdoutWr, &saAttr, 0)) {
-        debug_printf ("Stdout pipe creation failed\n");
-	free (ep);
-	return 0;
-    }
-
-    /* Ensure the read handle to the pipe for STDOUT is not inherited.*/
-    SetHandleInformation (ep->mypipe, HANDLE_FLAG_INHERIT, 0);
-
-    /* Create a pipe for the child process's STDIN. */
-    if (!CreatePipe (&hChildStdinRd, &hChildStdinWr, &saAttr, 0)) {
-        debug_printf ("Stdin pipe creation failed\n");
-	free (ep);
-	return 0;
-    }
-
-    /* Ensure the write handle to the pipe for STDIN is not inherited. */
-    SetHandleInformation (hChildStdinWr, HANDLE_FLAG_INHERIT, 0);
-
-    /* create the child process */
-    ZeroMemory (&piProcInfo, sizeof(PROCESS_INFORMATION));
-    ZeroMemory (&startup_info, sizeof(STARTUPINFO));
-    startup_info.cb = sizeof(STARTUPINFO); 
-    startup_info.hStdError = hChildStdoutWr;
-    startup_info.hStdOutput = hChildStdoutWr;
-    startup_info.hStdInput = hChildStdinRd;
-    startup_info.dwFlags |= STARTF_USESHOWWINDOW | STARTF_USESTDHANDLES;
-    //startup_info.wShowWindow = SW_SHOW;
-    startup_info.wShowWindow = SW_HIDE;
-
-    creation_flags = 0;
-    creation_flags |= CREATE_NEW_PROCESS_GROUP;
-    //creation_flags |= CREATE_NEW_CONSOLE;
-
-    rc = CreateProcess (
-		NULL,           // executable name
-		cmd,	        // command line 
-		NULL,           // process security attributes 
-		NULL,           // primary thread security attributes 
-		TRUE,           // handles are inherited 
-		creation_flags, // creation flags 
-		NULL,           // use parent's environment 
-		NULL,           // use parent's current directory 
-		&startup_info,  // STARTUPINFO pointer
-		&piProcInfo);   // receives PROCESS_INFORMATION 
-    if (rc == 0) {
-        debug_printf ("CreateProcess() failed\n");
-	free (ep);
-	return 0;
-    }
-    ep->hproc = piProcInfo.hProcess;
-    ep->pid = piProcInfo.dwProcessId;
-    //CloseHandle (piProcInfo.hProcess);
-    CloseHandle (piProcInfo.hThread);
-
-    Sleep (0);
-    return ep;
-}
- 
-int
-read_external (RIP_MANAGER_INFO* rmi, External_Process* ep, TRACK_INFO* ti)
-{
-    char c;
-    int rc;
-    int got_metadata = 0;
-    DWORD num_read;
-
-    ti->have_track_info = 0;
-
-    Sleep (0);
-    while (1) {
-	DWORD bytes_avail = 0;
-	rc = PeekNamedPipe (ep->mypipe, NULL, 0, NULL, &bytes_avail, NULL);
-	if (!rc) {
-	    DWORD error_code;
-	    /* Pipe closed? */
-	    /* GCS FIX: Restart external program if pipe closed */
-	    error_code = GetLastError ();
-	    debug_printf ("PeekNamedPipe failed, error_code = %d\n",
-			    error_code);
-	    return 0;
-	}
-	if (bytes_avail <= 0) {
-	    /* Pipe blocked */
-	    return got_metadata;
-	}
-	/* Pipe has data available, so read it */
-	rc = ReadFile (ep->mypipe, &c, 1, &num_read, NULL);
-	if (rc > 0 && num_read > 0) {
-	    int got_meta_byte;
-	    got_meta_byte = parse_external_byte (rmi, ep, ti, c);
-	    if (got_meta_byte) {
-		got_metadata = 1;
-	    }
-	}
-    }
-}
-
-void
-close_external (External_Process** epp)
-{
-    External_Process* ep = *epp;
-    BOOL rc;
-
-    rc = GenerateConsoleCtrlEvent (CTRL_C_EVENT, ep->pid);
-    if (!rc) {
-	/* The console control event will fail for the winamp 
-	   plugin.  Therefore, no choice but to kill 
-	   the process using TerminateProcess()... */
-	debug_print_error ();
-	debug_printf ("rc = %d, gle = %d\n", rc, GetLastError());
-	rc = TerminateProcess (ep->hproc, 0);
-	debug_printf ("Terminated process: %d\n", rc);
-    }
-    CloseHandle (ep->hproc);
-
-    free (ep);
-    *epp = 0;
-}
-
 /* ----------------------------- UNIX FUNCTIONS -------------------------- */
-#else
 
 /* These functions are in either libiberty, or included in argv.c */
 char** buildargv (char *sp);
@@ -362,4 +209,3 @@ close_external (External_Process** epp)
     free (ep);
     *epp = 0;
 }
-#endif

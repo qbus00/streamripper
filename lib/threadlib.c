@@ -16,10 +16,7 @@
  * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  */
 
-#if WIN32
-#include <process.h>
-#include <windows.h>
-#elif __UNIX__
+#if   __UNIX__
 #include <pthread.h>
 #elif __BEOS__
 #include <be/kernel/OS.h>

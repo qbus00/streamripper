@@ -160,7 +160,6 @@ filelib_init (RIP_MANAGER_INFO* rmi,
     fli->m_wav_output = 0;
     switch (content_type) {
     case CONTENT_TYPE_MP3:
-#if !defined (WIN32)
 	/* --wav: decode mp3 tracks to PCM .wav (individual tracks only). */
 	if (rmi->prefs->wav_output && do_individual_tracks) {
 	    fli->m_extension = m_(".wav");
@@ -168,9 +167,6 @@ filelib_init (RIP_MANAGER_INFO* rmi,
 	} else {
 	    fli->m_extension = m_(".mp3");
 	}
-#else
-	fli->m_extension = m_(".mp3");
-#endif
 	break;
     case CONTENT_TYPE_NSV:
     case CONTENT_TYPE_ULTRAVOX:
@@ -468,11 +464,7 @@ mkdir_if_needed (RIP_MANAGER_INFO* rmi, gchar *str)
     char s[SR_MAX_PATH];
     string_from_gstring (rmi, s, SR_MAX_PATH, str, CODESET_FILESYS);
     debug_printf ("mkdir = %s -> %s\n", str, s);
-#if WIN32
-    mkdir (s);
-#else
     mkdir (s, 0777);
-#endif
     return SR_SUCCESS;
 }
 
@@ -778,17 +770,10 @@ static error_code
 sr_getcwd (RIP_MANAGER_INFO* rmi, gchar* dirbuf)
 {
     char db[SR_MAX_PATH];
-#if defined (WIN32)
-    if (!_getcwd (db, SR_MAX_PATH)) {
-	debug_printf ("getcwd returned zero?\n");
-	return SR_ERROR_DIR_PATH_TOO_LONG;
-    }
-#else
     if (!getcwd (db, SR_MAX_PATH)) {
 	debug_printf ("getcwd returned zero?\n");
 	return SR_ERROR_DIR_PATH_TOO_LONG;
     }
-#endif
     gstring_from_string (rmi, dirbuf, SR_MAX_PATH, db, CODESET_FILESYS);
     return SR_SUCCESS;
 }
@@ -797,11 +782,7 @@ static void
 close_file (FHANDLE* fp)
 {
     if (*fp != INVALID_FHANDLE) {
-#if defined WIN32
-	CloseHandle (*fp);
-#else
 	close (*fp);
-#endif
 	*fp = INVALID_FHANDLE;
     }
 }
@@ -822,13 +803,7 @@ file_exists (RIP_MANAGER_INFO* rmi, gchar *filename)
     FHANDLE f;
     char fn[SR_MAX_PATH];
     string_from_gstring (rmi, fn, SR_MAX_PATH, filename, CODESET_FILESYS);
-#if defined (WIN32)
-    f = CreateFile (fn, GENERIC_READ,
-	    FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING,
-	    FILE_ATTRIBUTE_NORMAL, NULL);
-#else
     f = open (fn, O_RDONLY);
-#endif
     if (f == INVALID_FHANDLE) {
 	return FALSE;
     }
@@ -1066,15 +1041,8 @@ truncate_file (RIP_MANAGER_INFO* rmi, gchar* filename)
     char fn[SR_MAX_PATH];
     string_from_gstring (rmi, fn, SR_MAX_PATH, filename, CODESET_FILESYS);
     debug_printf ("Trying to truncate file: %s\n", fn);
-#if defined WIN32
-    CloseHandle (CreateFile(fn, GENERIC_WRITE, 
-		FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, 
-		TRUNCATE_EXISTING, 
-		FILE_ATTRIBUTE_NORMAL, NULL));
-#else
     close (open (fn, O_RDWR | O_CREAT | O_TRUNC, 
 		 S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH));
-#endif
 }
 
 static void
@@ -1084,11 +1052,7 @@ move_file (RIP_MANAGER_INFO* rmi, gchar* new_filename, gchar* old_filename)
     char new_fn[SR_MAX_PATH];
     string_from_gstring (rmi, old_fn, SR_MAX_PATH, old_filename, CODESET_FILESYS);
     string_from_gstring (rmi, new_fn, SR_MAX_PATH, new_filename, CODESET_FILESYS);
-#if defined WIN32
-    MoveFile(old_fn, new_fn);
-#else
     rename (old_fn, new_fn);
-#endif
 }
 
 static void
@@ -1096,11 +1060,7 @@ delete_file (RIP_MANAGER_INFO* rmi, gchar* filename)
 {
     char fn[SR_MAX_PATH];
     string_from_gstring (rmi, fn, SR_MAX_PATH, filename, CODESET_FILESYS);
-#if defined WIN32
-    DeleteFile (fn);
-#else
     unlink (fn);
-#endif
 }
 
 static error_code
@@ -1109,20 +1069,6 @@ filelib_open_for_write (RIP_MANAGER_INFO* rmi, FHANDLE* fp, gchar* filename)
     char fn[SR_MAX_PATH];
     string_from_gstring (rmi, fn, SR_MAX_PATH, filename, CODESET_FILESYS);
     debug_printf ("Trying to create file: %s\n", fn);
-#if WIN32
-    *fp = CreateFile (fn, GENERIC_WRITE,         // open for reading 
-		      FILE_SHARE_READ,           // share for reading 
-		      NULL,                      // no security 
-		      CREATE_ALWAYS,             // existing file only 
-		      FILE_ATTRIBUTE_NORMAL,     // normal file 
-		      NULL);                     // no attr. template 
-    if (*fp == INVALID_FHANDLE) {
-	int r = GetLastError();
-	r = strlen(fn);
-	printf ("ERROR creating file: %s\n",filename);
-	return SR_ERROR_CANT_CREATE_FILE;
-    }
-#else
     /* For unix, we need to convert to char, and just open. 
        http://mail.nl.linux.org/linux-utf8/2001-02/msg00103.html
     */
@@ -1132,7 +1078,6 @@ filelib_open_for_write (RIP_MANAGER_INFO* rmi, FHANDLE* fp, gchar* filename)
 	// printf ("ERROR creating file: %s\n",filename);
 	return SR_ERROR_CANT_CREATE_FILE;
     }
-#endif
     return SR_SUCCESS;
 }
 
@@ -1143,23 +1088,8 @@ filelib_write (FHANDLE fp, char *buf, u_long size)
 	debug_printf("filelib_write: fp = 0\n");
 	return SR_ERROR_CANT_WRITE_TO_FILE;
     }
-#if WIN32
-    {
-	BOOL rc;
-	DWORD bytes_written = 0;
-	rc = WriteFile (fp, buf, size, &bytes_written, NULL);
-	if (rc == 0) {
-	    debug_print_error ();
-	    debug_printf ("filelib_write: WriteFile rc = 0\n");
-	    debug_printf ("size = %d, bytes_written = %d\n", 
-			 size, bytes_written);
-	    return SR_ERROR_CANT_WRITE_TO_FILE;
-	}
-    }
-#else
     if (write (fp, buf, size) == -1)
 	return SR_ERROR_CANT_WRITE_TO_FILE;
-#endif
 
     return SR_SUCCESS;
 }

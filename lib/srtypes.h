@@ -21,12 +21,7 @@
 #include "sr_config.h"
 #include "sr_compat.h"
 #include "list.h"
-#if WIN32
-/* Warning: Not allowed to mix windows.h & cdk.h */
-#include <windows.h>
-#else
 #include <sys/types.h>
-#endif
 
 #include "sr_stdint.h"
 
@@ -96,11 +91,6 @@ typedef unsigned int uint32_t;
 
 #define DEFAULT_META_INTERVAL	1024
 
-#ifdef WIN32
-  #ifndef _WINSOCKAPI_
-    #define __DEFINE_TYPES__
-  #endif
-#endif
 
 #ifdef __DEFINE_TYPES__
 typedef unsigned long u_long;
@@ -232,9 +222,7 @@ typedef struct TRACK_INFOst
     BOOL save_track;
 } TRACK_INFO;
 
-#ifndef WIN32
 typedef int SOCKET;
-#endif
 
 typedef struct HSOCKETst
 {
@@ -283,14 +271,8 @@ typedef struct URLINFOst
 typedef struct external_process External_Process;
 struct external_process
 {
-#if defined (WIN32)
-    HANDLE mypipe;   /* read from child stdout */
-    HANDLE hproc;
-    DWORD pid;
-#else
     int mypipe[2];   /* 0 is for parent reading, 1 is for parent writing */
     pid_t pid;
-#endif
     int line_buf_idx;
     char line_buf[MAX_EXT_LINE_LEN];
     char album_buf[MAX_EXT_LINE_LEN];

@@ -22,11 +22,7 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  */
-#if WIN32
-#include <windows.h>
-#else
 #include <unistd.h>
-#endif
 
 #include <signal.h>
 #include <stdio.h>
@@ -298,9 +294,7 @@ print_usage (FILE* stream)
     fprintf(stream, "      -w rulefile    - Parse metadata using rules in file.\n");
     fprintf(stream, "      -m timeout     - Number of seconds before force-closing stalled conn\n");
     fprintf(stream, "      -k count       - Leave <count> tracks in incomplete\n");
-#if !defined (WIN32)
     fprintf(stream, "      -I interface   - Rip from specified interface (e.g. eth0)\n");
-#endif
     fprintf(stream, "      -T             - Truncate duplicated tracks in incomplete\n");
     fprintf(stream, "      -E command     - Run external command to fetch metadata\n");
     fprintf(stream, "      --quiet        - Don't print ripping status to console\n");

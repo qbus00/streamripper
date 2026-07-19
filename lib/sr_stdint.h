@@ -17,10 +17,6 @@
 #ifndef __SR_STDINT_H__
 #define __SR_STDINT_H__
 
-#if defined (WIN32)
-/* Do something */
-#else
 #include <stdint.h>
-#endif
 
 #endif

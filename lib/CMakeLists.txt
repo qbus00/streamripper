@@ -36,8 +36,7 @@ SET (STREAMRIPPER_LIB_SRC
 	utf8.c utf8.h
 	wav_output.c wav_output.h
 
-	charmaps.h
-	confw32.h
+	charmaps.h
 	list.h
 	sr_compat.h
 	srtypes.h

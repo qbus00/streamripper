@@ -38,9 +38,6 @@ Boston, MA 02111-1307, USA.  */
 # define alloca __builtin_alloca
 #elif defined _AIX
 # define alloca __alloca
-#elif defined _MSC_VER
-# include <malloc.h>
-# define alloca _alloca
 #else
 # include <stddef.h>
 # ifdef  __cplusplus
@@ -63,14 +60,12 @@ void freeargv (char **vector);
 
 #else	/* !ANSI_PROTOTYPES */
 
-#if !defined _WIN32 || defined __GNUC__
 extern char *memcpy ();		/* Copy memory region */
 extern int strlen ();		/* Count length of string */
 extern char *malloc ();		/* Standard memory allocater */
 extern char *realloc ();	/* Standard memory reallocator */
 extern void free ();		/* Free malloc'd memory */
 extern char *strdup ();		/* Duplicate a string */
-#endif
 
 #endif	/* ANSI_PROTOTYPES */
 
