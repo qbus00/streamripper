@@ -29,13 +29,30 @@ build_one() {
     echo "==> Building for ${platform} (${suffix})"
     # The 'artifact' stage is FROM scratch and contains only the binary;
     # -o exports it to the host as $OUTDIR/streamripper.
-    docker buildx build \
-        --platform "$platform" \
-        -f "$DOCKERFILE" \
-        --target artifact \
-        --build-arg "JOBS=${jobs}" \
-        -o "type=local,dest=${OUTDIR}/_${suffix}" \
-        .
+    #
+    # Under QEMU emulation (amd64 on an arm64 host) gcc's cc1 segfaults at
+    # random, failing an otherwise-valid build step.  Retry a few times: the
+    # docker-container builder caches successful layers, so each attempt
+    # resumes past the ones that already built.
+    attempt=1
+    max=8
+    while : ; do
+        if docker buildx build \
+            --platform "$platform" \
+            -f "$DOCKERFILE" \
+            --target artifact \
+            --build-arg "JOBS=${jobs}" \
+            -o "type=local,dest=${OUTDIR}/_${suffix}" \
+            . ; then
+            break
+        fi
+        if [ "$attempt" -ge "$max" ]; then
+            echo "ERROR: ${suffix} build failed after ${max} attempts" >&2
+            return 1
+        fi
+        echo "==> attempt ${attempt} failed (likely a QEMU cc1 segfault); retrying (cached layers resume)..."
+        attempt=$((attempt + 1))
+    done
     mv "${OUTDIR}/_${suffix}/streamripper" "${OUTDIR}/streamripper-linux-${suffix}"
     rmdir "${OUTDIR}/_${suffix}" 2>/dev/null || rm -rf "${OUTDIR}/_${suffix}"
     echo "==> Wrote ${OUTDIR}/streamripper-linux-${suffix}"

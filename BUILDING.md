@@ -85,6 +85,29 @@ docker buildx build --platform linux/arm64 -f Dockerfile.alpine \
 # -> out/streamripper
 ```
 
+#### Note on the emulated amd64 build (QEMU `cc1` segfaults)
+
+On an arm64 host the amd64 image is compiled under QEMU user-mode emulation,
+where GCC's `cc1` **segfaults at random** — a valid build step fails with
+`internal compiler error: Segmentation fault` on no particular file, and a
+plain re-run usually gets further. It's an emulation bug, not a problem with
+the source. The build scripts work around it in three ways, so you normally
+don't have to think about it:
+
+- **`build-linux.sh` retries** the emulated build (up to 8 attempts). Docker
+  caches the layers that already succeeded, so each retry resumes where the
+  last one crashed rather than starting over.
+- **`JOBS=1`** is passed for the amd64 target so every from-source dependency
+  and the final link compile single-threaded (parallel `cc1` under QEMU is the
+  worst case). Native arm64 still builds with all cores.
+- **faad2 builds only the `faad` target** (the one static lib we need) instead
+  of its default four library variants + CLI — that is ~75% less code fed
+  through the emulated compiler, which markedly cuts the crash rate.
+
+If you build the amd64 image with a raw `docker buildx build` (bypassing
+`build-linux.sh`) and hit the segfault, just run the same command again — the
+cache makes it resume.
+
 ### macOS — self-contained arm64
 
 macOS cannot produce a *fully* static binary (there is no static libSystem), so
