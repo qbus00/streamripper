@@ -7,11 +7,12 @@ inline metadata to detect where each song begins and ends, and saves the tracks
 to your hard drive in the stream's native format (**mp3, aac, nsv, ogg**). It
 can also run a local relay server so you can listen while you record.
 
-> **This fork** adds **HTTPS/TLS support** (modern `https://` stream URLs) and
+> **This fork** adds **HTTPS/TLS support** (modern `https://` stream URLs),
+> **HLS (`.m3u8`) recording**, **AAC silence-based splitting**, and
 > **self-contained cross-builds** for Linux (arm64/amd64) and Apple Silicon
 > macOS. It is based on the original
 > [streamripper](http://streamripper.sourceforge.net/) by Jon Clegg and
-> Gregory C. Sharp.
+> Gregory C. Sharp; the fork changes are maintained by Jakub Kaprzyk.
 
 ---
 
@@ -174,6 +175,7 @@ allow more than one simultaneous listener.
 
 ## License
 
-Copyright © 2000–2002 Jon Clegg, © 2004–2009 Gregory C. Sharp, and fork
-contributors. Free use is granted under the terms of the **GNU General Public
-License, version 2** (see [`COPYING`](COPYING)).
+Copyright © 2000–2002 Jon Clegg and © 2004–2009 Gregory C. Sharp (original
+streamripper), with later fork contributions © 2025–2026 Jakub Kaprzyk. Free
+use is granted under the terms of the **GNU General Public License, version 2**
+(see [`COPYING`](COPYING)).
