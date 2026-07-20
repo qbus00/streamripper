@@ -23,7 +23,7 @@
 #include "errors.h"
 #include "sr_compat.h"
 
-#define SRVERSION	"3.2.0-qbus"
+#define SRVERSION	"3.3.0-qbus"
 
 #define SRPLATFORM      "unix"
 

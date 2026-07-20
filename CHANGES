@@ -1,3 +1,12 @@
+New for 3.3.0-qbus
+------------------------------------
+* AAC silence detection: track boundaries on aac shoutcast/icecast streams
+  are now refined by searching for a quiet point in the audio (decoded via
+  faad2), the same way mp3 has always worked via libmad.  Previously aac
+  tracks were cut at a fixed midpoint.  Built as an optional dependency
+  (WITH_FAAD, on by default); the self-contained binaries bundle a static
+  libfaad2.  Does not apply to HLS (.m3u8), which stays single-file.
+
 New for 3.2.0-qbus
 ------------------------------------
 * HLS: AES-128 encrypted segments (#EXT-X-KEY:METHOD=AES-128) are now decrypted
