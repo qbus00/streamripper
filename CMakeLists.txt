@@ -141,6 +141,30 @@ ELSE (WITH_SSL)
   SET (SR_SSL_LIBS)
 ENDIF (WITH_SSL)
 
+##-----------------------------------------------------------------------------
+##  faad2 (optional) -- enables silence-based track splitting for AAC streams
+##-----------------------------------------------------------------------------
+OPTION (WITH_FAAD "Build with AAC silence detection (faad2)" ON)
+IF (WITH_FAAD)
+  IF (STREAMRIPPER_STATIC)
+    FIND_LIBRARY (FAAD_LIBRARIES NAMES libfaad.a faad)
+  ELSE (STREAMRIPPER_STATIC)
+    FIND_LIBRARY (FAAD_LIBRARIES NAMES faad)
+  ENDIF (STREAMRIPPER_STATIC)
+  FIND_PATH (FAAD_INCLUDE_DIR neaacdec.h)
+  IF (FAAD_LIBRARIES AND FAAD_INCLUDE_DIR)
+    MESSAGE ("faad2 found: ${FAAD_LIBRARIES}")
+    ADD_DEFINITIONS (-DHAVE_FAAD=1)
+    INCLUDE_DIRECTORIES (BEFORE ${FAAD_INCLUDE_DIR})
+    SET (SR_FAAD_LIBS ${FAAD_LIBRARIES})
+  ELSE (FAAD_LIBRARIES AND FAAD_INCLUDE_DIR)
+    MESSAGE (WARNING "faad2 not found; AAC streams won't get silence-based track splitting")
+    SET (SR_FAAD_LIBS)
+  ENDIF (FAAD_LIBRARIES AND FAAD_INCLUDE_DIR)
+ELSE (WITH_FAAD)
+  SET (SR_FAAD_LIBS)
+ENDIF (WITH_FAAD)
+
 INCLUDE (${CMAKE_SOURCE_DIR}/cmake/SR_FindSockets.cmake)
 
 FIND_LIBRARY (SEMAPHORE_LIBRARIES NAMES sem rt)
@@ -213,6 +237,10 @@ ENDIF (OGG_FOUND AND VORBIS_FOUND)
 IF (SR_SSL_LIBS)
   SET (STREAMRIPPER_LIBS ${STREAMRIPPER_LIBS} ${SR_SSL_LIBS})
 ENDIF (SR_SSL_LIBS)
+
+IF (SR_FAAD_LIBS)
+  SET (STREAMRIPPER_LIBS ${STREAMRIPPER_LIBS} ${SR_FAAD_LIBS})
+ENDIF (SR_FAAD_LIBS)
 
 SET (STREAMRIPPER_LIBS ${STREAMRIPPER_LIBS} ${SR_EXTRA_LIBS})
 

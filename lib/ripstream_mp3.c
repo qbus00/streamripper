@@ -534,50 +534,63 @@ find_sep (RIP_MANAGER_INFO* rmi,
 	rw_size
     );
 
-    if (rmi->http_info.content_type != CONTENT_TYPE_MP3) {
-	long midpoint = rw_size / 2;
-	debug_printf ("(not mp3) taking middle: sw_sil=%d\n", midpoint);
-	cbuf3_pointer_add (cbuf3, end_of_previous, &rw_start, midpoint - 1);
-	cbuf3_pointer_add (cbuf3, start_of_next, &rw_start, midpoint);
-    } else {
-	u_long bufsize = rw_size;
-	char* buf = (char*) malloc (bufsize);
-	u_long pos1, pos2;
+    /* Which content types can we scan for silence?  mp3 always (libmad); aac
+       only when built with faad2. */
+    {
+	int can_split = (rmi->http_info.content_type == CONTENT_TYPE_MP3);
+#if defined (HAVE_FAAD)
+	if (rmi->http_info.content_type == CONTENT_TYPE_AAC)
+	    can_split = 1;
+#endif
 
-	rc = cbuf3_peek (&rmi->cbuf3, buf, &rw_start, bufsize);
-	if (rc != SR_SUCCESS) {
-	    debug_printf ("PEEK FAILED: %d\n", rc);
-	    free(buf);
-	    return rc;
-	}
-	debug_printf ("PEEK OK\n");
-
-	/* Find silence point */
-	if (sp_opt->xs == 2) {
-	    rc = findsep_silence_2 (buf, 
-		bufsize, 
-		rmi->rw_start_to_sw_start,
-		sp_opt->xs_search_window_1 
-		+ sp_opt->xs_search_window_2,
-		sp_opt->xs_silence_length,
-		sp_opt->xs_padding_1,
-		sp_opt->xs_padding_2,
-		&pos1, &pos2);
+	if (!can_split) {
+	    long midpoint = rw_size / 2;
+	    debug_printf ("(no silence decoder for this codec) taking middle: sw_sil=%d\n",
+			  midpoint);
+	    cbuf3_pointer_add (cbuf3, end_of_previous, &rw_start, midpoint - 1);
+	    cbuf3_pointer_add (cbuf3, start_of_next, &rw_start, midpoint);
 	} else {
-	    rc = findsep_silence (buf, 
-		bufsize, 
-		rmi->rw_start_to_sw_start,
-		sp_opt->xs_search_window_1 
-		+ sp_opt->xs_search_window_2,
-		sp_opt->xs_silence_length,
-		sp_opt->xs_padding_1,
-		sp_opt->xs_padding_2,
-		&pos1, &pos2);
-	}
+	    u_long bufsize = rw_size;
+	    char* buf = (char*) malloc (bufsize);
+	    u_long pos1, pos2;
+	    long len_to_sw = rmi->rw_start_to_sw_start;
+	    long window = sp_opt->xs_search_window_1 + sp_opt->xs_search_window_2;
 
-	cbuf3_pointer_add (cbuf3, end_of_previous, &rw_start, pos1);
-	cbuf3_pointer_add (cbuf3, start_of_next, &rw_start, pos2);
-	free(buf);
+	    rc = cbuf3_peek (&rmi->cbuf3, buf, &rw_start, bufsize);
+	    if (rc != SR_SUCCESS) {
+		debug_printf ("PEEK FAILED: %d\n", rc);
+		free(buf);
+		return rc;
+	    }
+	    debug_printf ("PEEK OK\n");
+
+	    /* Find silence point */
+#if defined (HAVE_FAAD)
+	    if (rmi->http_info.content_type == CONTENT_TYPE_AAC) {
+		/* faad2 path; the xs==2 algorithm is mp3-only, so AAC always
+		   uses the standard silence search. */
+		rc = findsep_silence_aac (buf, bufsize, len_to_sw, window,
+		    sp_opt->xs_silence_length,
+		    sp_opt->xs_padding_1, sp_opt->xs_padding_2,
+		    &pos1, &pos2);
+	    } else
+#endif
+	    if (sp_opt->xs == 2) {
+		rc = findsep_silence_2 (buf, bufsize, len_to_sw, window,
+		    sp_opt->xs_silence_length,
+		    sp_opt->xs_padding_1, sp_opt->xs_padding_2,
+		    &pos1, &pos2);
+	    } else {
+		rc = findsep_silence (buf, bufsize, len_to_sw, window,
+		    sp_opt->xs_silence_length,
+		    sp_opt->xs_padding_1, sp_opt->xs_padding_2,
+		    &pos1, &pos2);
+	    }
+
+	    cbuf3_pointer_add (cbuf3, end_of_previous, &rw_start, pos1);
+	    cbuf3_pointer_add (cbuf3, start_of_next, &rw_start, pos2);
+	    free(buf);
+	}
     }
 
     return SR_SUCCESS;

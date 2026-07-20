@@ -17,6 +17,7 @@ There are two kinds of build:
 | glib-2.0 | core data structures | yes |
 | libmad | MP3 decode (silence-based track splitting) | yes |
 | OpenSSL | TLS for `https://` streams | optional (on by default; `-DWITH_SSL=OFF` to disable) |
+| faad2 | AAC decode for silence-based splitting of aac streams | optional (on by default; `-DWITH_FAAD=OFF` to disable) |
 | libogg + libvorbis | Ogg/Vorbis stream support | optional |
 
 A C compiler, CMake (>= 3.5), and pkg-config are also needed.
@@ -34,7 +35,7 @@ A C compiler, CMake (>= 3.5), and pkg-config are also needed.
 
 ```sh
 sudo apt install cmake pkg-config build-essential \
-    libglib2.0-dev libmad0-dev libogg-dev libvorbis-dev libssl-dev
+    libglib2.0-dev libmad0-dev libfaad-dev libogg-dev libvorbis-dev libssl-dev
 
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build -j"$(nproc)"
@@ -44,7 +45,7 @@ cmake --build build -j"$(nproc)"
 ### macOS (Apple Silicon or Intel)
 
 ```sh
-brew install cmake pkg-config glib mad libogg libvorbis openssl@3
+brew install cmake pkg-config glib mad faad2 libogg libvorbis openssl@3
 
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_PREFIX_PATH="$(brew --prefix)" \
@@ -88,12 +89,12 @@ docker buildx build --platform linux/arm64 -f Dockerfile.alpine \
 
 macOS cannot produce a *fully* static binary (there is no static libSystem), so
 "self-contained" means all third-party libraries are linked statically while the
-always-present macOS system libraries/frameworks stay dynamic. libmad has no
-static package on Homebrew, so the script builds it from source (cached under
-`macos-build/cache/`).
+always-present macOS system libraries/frameworks stay dynamic. libmad and faad2
+have no static package on Homebrew, so the script builds them from source
+(cached under `macos-build/cache/`).
 
 ```sh
-brew install cmake pkg-config glib pcre2 gettext openssl@3 libogg libvorbis
+brew install cmake pkg-config glib pcre2 gettext openssl@3 libogg libvorbis faad2
 
 ./build-macos.sh
 # -> dist/streamripper-macos-arm64   (runs on any Apple Silicon Mac, M1..M5)
@@ -113,6 +114,7 @@ code-signed/notarized; clear the flag once with
 |---|---|---|
 | `STREAMRIPPER_STATIC` | `OFF` | Self-contained build. On Linux: fully static (`-static`, musl). On macOS: static third-party libs, dynamic system libs. |
 | `WITH_SSL` | `ON` | Build with OpenSSL for `https://` support. `OFF` disables TLS (https URLs then error out). |
+| `WITH_FAAD` | `ON` | Build with faad2 for AAC silence-based track splitting. `OFF` (or faad2 absent) → aac streams split at a fixed interval instead. |
 
 When cross-relevant, also useful:
 `-DCMAKE_OSX_ARCHITECTURES=arm64`, `-DOPENSSL_ROOT_DIR=...`,

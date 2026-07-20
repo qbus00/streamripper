@@ -32,6 +32,10 @@
 #include "debug.h"
 #include "list.h"
 
+#if defined (HAVE_FAAD)
+#include <neaacdec.h>
+#endif
+
 #define MIN_RMS_SILENCE		100
 #define MAX_RMS_SILENCE		32767 //max short
 #define NUM_SILTRACKERS		30
@@ -170,6 +174,96 @@ mad_error_string (enum mad_error mad_err)
     }
 }
 
+/* Initialize the shared decode/search state.  Codec-neutral: the mp3 (libmad)
+   and aac (faad2) front-ends both call this before feeding PCM. */
+static void
+findsep_init_ds (DECODE_STRUCT* ds, const char* buf, long size,
+		 long len_to_sw, long searchwindow, long silence_length)
+{
+    ds->mpgbuf = (unsigned char*) buf;
+    ds->mpgsize = size;
+    ds->pcmpos = 0;
+    ds->mpgpos_curr = -1;
+    ds->mpgpos_next = 0;
+    ds->samplerate = 0;
+    ds->prev_sample = 0;
+    ds->len_to_sw_ms = len_to_sw;
+    ds->searchwindow_ms = searchwindow;
+    ds->silence_ms = silence_length;
+    INIT_LIST_HEAD (&ds->frame_list);
+    init_siltrackers (ds->siltrackers);
+}
+
+/* Latch the sample rate (from the first decoded frame/header) and derive the
+   window bounds in samples.  Idempotent; the first non-zero rate wins. */
+static void
+findsep_set_samplerate (DECODE_STRUCT* ds, long samplerate)
+{
+    if (!ds->samplerate && samplerate > 0) {
+	ds->samplerate = samplerate;
+	ds->silence_samples = ds->silence_ms * (ds->samplerate/1000);
+	ds->len_to_sw_start_samp = ds->len_to_sw_ms * (ds->samplerate/1000);
+	ds->len_to_sw_end_samp = (ds->len_to_sw_ms + ds->searchwindow_ms)
+		* (ds->samplerate/1000);
+	debug_printf ("Setting samplerate: %ld\n", ds->samplerate);
+    }
+}
+
+/* Feed one 16-bit mono PCM sample to the silence search.  This is the shared
+   heart of the detector -- it is codec-independent. */
+static void
+findsep_process_sample (DECODE_STRUCT* ds, short sample)
+{
+    /* Instantaneous volume: RMS of this sample and the previous one. */
+    double v = (double) ds->prev_sample * ds->prev_sample
+	     + (double) sample * sample;
+    v = sqrt (v / 2);
+    if (ds->pcmpos > ds->len_to_sw_start_samp
+	&& ds->pcmpos < ds->len_to_sw_end_samp) {
+	search_for_silence (ds, v);
+    }
+    ds->pcmpos++;
+    ds->prev_sample = sample;
+}
+
+/* After all PCM has been fed, pick the silence point and convert it to byte
+   offsets (pos1/pos2) in the input buffer.  Frees the frame list. */
+static void
+findsep_finalize (DECODE_STRUCT* ds, long padding1, long padding2,
+		  u_long* pos1, u_long* pos2)
+{
+    unsigned long silstart;
+    int i;
+
+    debug_printf ("total length:    %d\n", ds->pcmpos);
+    debug_printf ("silence_samples: %d\n", ds->silence_samples);
+
+    /* If nothing decoded, fall back to the middle of the buffer. */
+    if (ds->frame_list.next == &ds->frame_list) {
+	*pos1 = ds->mpgsize / 2;
+	*pos2 = ds->mpgsize / 2;
+	return;
+    }
+
+    /* Search through siltrackers to find minimum volume point */
+    silstart = ds->pcmpos/2;
+    for (i = 0; i < NUM_SILTRACKERS; i++) {
+	if (ds->siltrackers[i].foundsil) {
+	    silstart = ds->siltrackers[i].silstart_samp;
+	    break;
+	}
+    }
+    if (i == NUM_SILTRACKERS) {
+	debug_printf ("warning: no silence found between tracks\n");
+    }
+
+    /* Now that we have the start of the silence, let's add the padding */
+    apply_padding (ds, silstart, padding1, padding2, pos1, pos2);
+
+    /* Free the list of frame info */
+    free_frame_list (ds);
+}
+
 error_code
 findsep_silence (const char* mpgbuf,
 		 long mpgsize,
@@ -184,71 +278,21 @@ findsep_silence (const char* mpgbuf,
 {
     DECODE_STRUCT ds;
     struct mad_decoder decoder;
-    unsigned long silstart;
-    int i;
-    
-    ds.mpgbuf = (unsigned char*) mpgbuf;
-    ds.mpgsize = mpgsize;
-    ds.pcmpos = 0;
-    ds.mpgpos_curr = -1;
-    ds.mpgpos_next = 0;
-    ds.samplerate = 0;
-    ds.prev_sample = 0;
-    ds.len_to_sw_ms = len_to_sw;
-    ds.searchwindow_ms = searchwindow;
-    ds.silence_ms = silence_length;
-    INIT_LIST_HEAD (&ds.frame_list);
 
-    debug_printf ("FINDSEP 1: %p -> %p (0x%x)\n", 
+    findsep_init_ds (&ds, mpgbuf, mpgsize, len_to_sw, searchwindow,
+		     silence_length);
+
+    debug_printf ("FINDSEP 1: %p -> %p (0x%x)\n",
 	mpgbuf, mpgbuf+mpgsize, mpgsize);
 
-    init_siltrackers(ds.siltrackers);
-
-#if defined (MAKE_DUMP_MP3)
-    {
-	FILE* fp = fopen("dump.mp3", "wb");
-	fwrite(mpgbuf, mpgsize, 1, fp);
-	fclose(fp);
-    }
-#endif
-
     /* Run decoder */
-    mad_decoder_init (&decoder, &ds, input, header, filter, output, 
+    mad_decoder_init (&decoder, &ds, input, header, filter, output,
 	error, NULL);
     (void) mad_decoder_run (&decoder, MAD_DECODER_MODE_SYNC);
     mad_decoder_finish (&decoder);
 
-    debug_printf ("total length:    %d\n", ds.pcmpos);
-    debug_printf ("silence_length:  %d ms\n", ds.silence_ms);
-    debug_printf ("silence_samples: %d\n", ds.silence_samples);
-
-    /* Search through siltrackers to find minimum volume point */
-    assert(ds.mpgsize != 0);
-    silstart = ds.pcmpos/2;
-    for (i = 0; i < NUM_SILTRACKERS; i++) {
-	debug_printf("SILT: %2d/%8g, pcm=%4d, found=%d, insil=%d\n", 
-	    i,
-	    ds.siltrackers[i].silencevol,
-	    ds.siltrackers[i].silstart_samp,
-	    ds.siltrackers[i].foundsil,
-	    ds.siltrackers[i].insilencecount
-	    );
-	if (ds.siltrackers[i].foundsil) {
-	    debug_printf("found!\n");
-	    silstart = ds.siltrackers[i].silstart_samp;
-	    break;
-	}
-    }
-
-    if (i == NUM_SILTRACKERS) {
-	debug_printf("warning: no silence found between tracks\n");
-    }
-
-    /* Now that we have the start of the silence, let's add the padding */
-    apply_padding (&ds, silstart, padding1, padding2, pos1, pos2);
-
-    /* Free the list of frame info */
-    free_frame_list (&ds);
+    assert (ds.mpgsize != 0);
+    findsep_finalize (&ds, padding1, padding2, pos1, pos2);
 
     return SR_SUCCESS;
 }
@@ -484,7 +528,6 @@ output (void *data, struct mad_header const *header,
     unsigned int nchannels, nsamples;
     mad_fixed_t const *left_ch, *right_ch;
     signed int sample;
-    double v;
 
     nchannels = pcm->channels;
     nsamples  = pcm->length;
@@ -511,25 +554,15 @@ output (void *data, struct mad_header const *header,
 	/* output sample(s) in 16-bit signed little-endian PCM */
 	/* GCS FIX: Does this work on big endian machines??? */
 	sample = (short) scale (*left_ch++);
-	//	fwrite(&sample, sizeof(short), 1, fp);
 
 	if (nchannels == 2) {
 	    // make mono
 	    sample = (sample+scale(*right_ch++))/2;
 	}
 
-	// get the instantanous volume
-	v = (ds->prev_sample*ds->prev_sample)+(sample*sample);
-	v = sqrt(v / 2);
-	if (ds->pcmpos > ds->len_to_sw_start_samp
-	    && ds->pcmpos < ds->len_to_sw_end_samp)
-	{
-	    search_for_silence(ds, v);
-	}
-	ds->pcmpos++;
-	ds->prev_sample = sample;
+	findsep_process_sample (ds, (short) sample);
     }
-    
+
     return MAD_FLOW_CONTINUE;
 }
 
@@ -537,14 +570,7 @@ static enum mad_flow
 header (void *data, struct mad_header const *pheader)
 {
     DECODE_STRUCT *ds = (DECODE_STRUCT *)data;
-    if (!ds->samplerate) {
-	ds->samplerate = pheader->samplerate;
-	ds->silence_samples = ds->silence_ms * (ds->samplerate/1000);
-	ds->len_to_sw_start_samp = ds->len_to_sw_ms * (ds->samplerate/1000);
-	ds->len_to_sw_end_samp = (ds->len_to_sw_ms + ds->searchwindow_ms) 
-		* (ds->samplerate/1000);
-	debug_printf ("Setting samplerate: %ld\n",ds->samplerate);
-    }
+    findsep_set_samplerate (ds, pheader->samplerate);
     return MAD_FLOW_CONTINUE;
 }
 
@@ -613,3 +639,134 @@ header_get_bitrate (void *data, struct mad_header const *pheader)
     debug_printf ("Decoded bitrate from stream: %ld\n", gbs->bitrate);
     return MAD_FLOW_STOP;
 }
+
+#if defined (HAVE_FAAD)
+/*****************************************************************************
+ * AAC silence detection (faad2)
+ *
+ * The mp3 path above is driven by libmad's callbacks; here we drive faad2
+ * ourselves, decoding one ADTS frame at a time to 16-bit PCM and feeding the
+ * same silence search.  Each ADTS frame is recorded in the frame list (byte
+ * position -> pcm position) exactly like the mp3 filter/output callbacks do,
+ * so the resulting cut lands on an ADTS frame boundary.
+ *****************************************************************************/
+
+/* Find the next ADTS syncword (12 bits set: 0xFFF) at or after `start`.
+   Returns the offset, or -1 if none. */
+static long
+adts_find_sync (const unsigned char* buf, long size, long start)
+{
+    long i;
+    for (i = start; i + 1 < size; i++) {
+	if (buf[i] == 0xFF && (buf[i+1] & 0xF6) == 0xF0)
+	    return i;
+    }
+    return -1;
+}
+
+error_code
+findsep_silence_aac (const char* aacbuf,
+		     long aacsize,
+		     long len_to_sw,
+		     long searchwindow,
+		     long silence_length,
+		     long padding1,
+		     long padding2,
+		     u_long* pos1,
+		     u_long* pos2
+		     )
+{
+    DECODE_STRUCT ds;
+    NeAACDecHandle dec;
+    NeAACDecConfigurationPtr conf;
+    unsigned long samplerate = 0;
+    unsigned char channels = 0;
+    long pos, synced, init_rc;
+
+    /* Sensible fallback in case we bail early. */
+    *pos1 = aacsize / 2;
+    *pos2 = aacsize / 2;
+
+    findsep_init_ds (&ds, aacbuf, aacsize, len_to_sw, searchwindow,
+		     silence_length);
+
+    debug_printf ("FINDSEP AAC: %p -> %p (0x%x)\n",
+	aacbuf, aacbuf + aacsize, aacsize);
+
+    dec = NeAACDecOpen ();
+    if (!dec)
+	return SR_SUCCESS;
+    conf = NeAACDecGetCurrentConfiguration (dec);
+    conf->outputFormat = FAAD_FMT_16BIT;
+    NeAACDecSetConfiguration (dec, conf);
+
+    /* Sync to the first ADTS frame and initialize the decoder there. */
+    synced = adts_find_sync ((const unsigned char*) aacbuf, aacsize, 0);
+    if (synced < 0) {
+	NeAACDecClose (dec);
+	return SR_SUCCESS;
+    }
+    init_rc = NeAACDecInit (dec, (unsigned char*) aacbuf + synced,
+			    aacsize - synced, &samplerate, &channels);
+    if (init_rc < 0) {
+	NeAACDecClose (dec);
+	return SR_SUCCESS;
+    }
+    pos = synced + init_rc;   /* usually 0 for ADTS -> starts at the sync */
+
+    /* Decode frame by frame. */
+    while (pos < aacsize) {
+	NeAACDecFrameInfo fi;
+	void* out;
+	long framepos = pos;
+
+	out = NeAACDecDecode (dec, &fi, (unsigned char*) aacbuf + pos,
+			      aacsize - pos);
+	if (fi.error != 0 || fi.bytesconsumed == 0) {
+	    /* Resync to the next ADTS frame, if any. */
+	    long nxt = adts_find_sync ((const unsigned char*) aacbuf, aacsize,
+				       pos + 1);
+	    if (nxt < 0)
+		break;
+	    pos = nxt;
+	    continue;
+	}
+
+	/* Output sample rate is known only after decoding (HE-AAC/SBR doubles
+	   it), so latch it from the frame, not from NeAACDecInit. */
+	findsep_set_samplerate (&ds, (long) fi.samplerate);
+
+	/* Record this frame's byte -> pcm mapping. */
+	{
+	    FRAME_LIST* fl = (FRAME_LIST*) malloc (sizeof(FRAME_LIST));
+	    unsigned int nch = fi.channels ? fi.channels : 1;
+	    fl->m_framepos = ds.mpgbuf + framepos;
+	    fl->m_samples = fi.samples / nch;
+	    fl->m_pcmpos = ds.pcmpos;
+	    list_add_tail (&(fl->m_list), &(ds.frame_list));
+	}
+
+	/* Mono-mix the interleaved 16-bit PCM and feed the silence search. */
+	if (out && fi.samples > 0) {
+	    const short* pcm = (const short*) out;
+	    unsigned int nch = fi.channels ? fi.channels : 1;
+	    unsigned long nframes = fi.samples / nch;
+	    unsigned long i;
+	    for (i = 0; i < nframes; i++) {
+		long s;
+		if (nch >= 2)
+		    s = ((long) pcm[i*nch] + (long) pcm[i*nch + 1]) / 2;
+		else
+		    s = pcm[i*nch];
+		findsep_process_sample (&ds, (short) s);
+	    }
+	}
+
+	pos += fi.bytesconsumed;
+    }
+
+    NeAACDecClose (dec);
+    findsep_finalize (&ds, padding1, padding2, pos1, pos2);
+    return SR_SUCCESS;
+}
+#endif /* HAVE_FAAD */

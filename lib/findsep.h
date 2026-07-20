@@ -43,6 +43,19 @@ findsep_silence_2 (const char* mpgbuf,
 		 u_long* pos1, 
 		 u_long* pos2
 		 );
+/* AAC (ADTS) variant, available when built with faad2 (HAVE_FAAD). */
+error_code
+findsep_silence_aac (const char* aacbuf,
+		 long aacsize,
+		 long len_to_sw,
+		 long searchwindow,
+		 long silence_length,
+		 long padding1,
+		 long padding2,
+		 u_long* pos1,
+		 u_long* pos2
+		 );
+
 error_code
 find_bitrate (unsigned long* bitrate, const char* mpgbuf, long mpgsize);
 
