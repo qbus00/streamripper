@@ -176,6 +176,6 @@ allow more than one simultaneous listener.
 ## License
 
 Copyright © 2000–2002 Jon Clegg and © 2004–2009 Gregory C. Sharp (original
-streamripper), with later fork contributions © 2025–2026 Jakub Kaprzyk. Free
+streamripper), with later fork contributions © 2026 Jakub Kaprzyk. Free
 use is granted under the terms of the **GNU General Public License, version 2**
 (see [`COPYING`](COPYING)).
