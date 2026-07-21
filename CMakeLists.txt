@@ -2,9 +2,12 @@
 ##  Welcome to Streamripper
 ##-----------------------------------------------------------------------------
 ## cmake_minimum_required must precede project(); the old 2.6.0 floor is no
-## longer accepted by CMake 4.x.  3.5 works with both modern (macOS) and
-## older (Alpine) toolchains.
-CMAKE_MINIMUM_REQUIRED (VERSION 3.5)
+## longer accepted by CMake 4.x.  The <min>...<max> range keeps a low floor
+## (3.10) while opting into modern policy defaults up to 3.28 -- this silences
+## the "compatibility with CMake < 3.10 will be removed" deprecation warning
+## and enables CMP0156 (link-line de-duplication), which drops the duplicate
+## static libraries the older policy left on the macOS link line.
+CMAKE_MINIMUM_REQUIRED (VERSION 3.13...3.28)
 
 PROJECT (STREAMRIPPER)
 
@@ -100,12 +103,18 @@ IF (UNIX)
           LIST (APPEND _glib_static_libs "-l${_l}")
         ENDIF (GLIBDEP_${_l})
       ENDFOREACH (_l)
-      SET (GLIB2_LIBRARIES ${_glib_static_libs}
-        "-liconv"
-        "-framework CoreFoundation"
-        "-framework Foundation"
-        "-framework AppKit"
-        "-framework Carbon")
+      ## GLIB2_STATIC_LIBRARIES already lists iconv; glib on macOS additionally
+      ## needs a few system frameworks that pkg-config drops from the lib list.
+      ## Resolve them to full framework paths (rather than "-framework X" flag
+      ## strings) so CMake can de-duplicate the whole link list -- flag strings
+      ## with embedded spaces defeat that de-duplication and get re-emitted.
+      FOREACH (_fw CoreFoundation Foundation AppKit Carbon)
+        FIND_LIBRARY (GLIBFW_${_fw} ${_fw})
+        IF (GLIBFW_${_fw})
+          LIST (APPEND _glib_static_libs ${GLIBFW_${_fw}})
+        ENDIF (GLIBFW_${_fw})
+      ENDFOREACH (_fw)
+      SET (GLIB2_LIBRARIES ${_glib_static_libs})
     ELSE (APPLE)
       SET (GLIB2_LIBRARIES ${GLIB2_STATIC_LIBRARIES})
     ENDIF (APPLE)
@@ -248,8 +257,26 @@ SET (STREAMRIPPER_LIBS ${STREAMRIPPER_LIBS} ${SR_EXTRA_LIBS})
 ##  Linking
 ##-----------------------------------------------------------------------------
 ADD_EXECUTABLE (streamripper ${STREAMRIPPER_SRC})
-TARGET_LINK_LIBRARIES (streamripper ${MY_MATH_LIB}
-  streamripper1 ${STREAMRIPPER_LIBS})
+## Model the third-party libs as dependencies of the static library that
+## actually uses them (streamripper1), and let CMake propagate them to the
+## executable.  This emits each library once, in dependency order -- avoiding
+## the duplicate entries that appear when the same list is attached directly to
+## the executable alongside the static lib.
+TARGET_LINK_LIBRARIES (streamripper1 PUBLIC ${STREAMRIPPER_LIBS})
+TARGET_LINK_LIBRARIES (streamripper ${MY_MATH_LIB} streamripper1)
+
+## Apple's ld64 (Xcode 15+) warns about the few system-lib flags (-lm,
+## -lpthread) and pcre2 that CMake re-emits when propagating a static library's
+## interface; the linker de-duplicates them harmlessly.  Silence that benign
+## warning where the linker understands the option (a no-op on GNU ld, which
+## never emits it).  Guarded so older toolchains that lack the flag are unaffected.
+IF (APPLE AND NOT CMAKE_VERSION VERSION_LESS 3.18)
+  INCLUDE (CheckLinkerFlag)
+  CHECK_LINKER_FLAG (C "-Wl,-no_warn_duplicate_libraries" SR_HAVE_NO_WARN_DUP_LIBS)
+  IF (SR_HAVE_NO_WARN_DUP_LIBS)
+    TARGET_LINK_OPTIONS (streamripper PRIVATE "-Wl,-no_warn_duplicate_libraries")
+  ENDIF (SR_HAVE_NO_WARN_DUP_LIBS)
+ENDIF (APPLE AND NOT CMAKE_VERSION VERSION_LESS 3.18)
 
 ##-----------------------------------------------------------------------------
 ##  Install
