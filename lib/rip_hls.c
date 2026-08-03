@@ -168,6 +168,13 @@ hls_http_get (RIP_MANAGER_INFO *rmi, const char *url,
     char *p;
     int status = 0;
 
+    /* Zero the handle before socklib_open: it inspects sock.ssl / sock.ssl_ctx
+       up front (to free TLS objects deferred from a previous connection on the
+       handle).  An uninitialized handle makes that a free() of stack garbage --
+       harmless where the garbage is NULL (macOS/arm64) but a crash on amd64
+       musl, which is why HTTPS HLS rips died on the NAS. */
+    memset (&sock, 0, sizeof(sock));
+
     *body_out = NULL;
     *bodylen_out = 0;
 

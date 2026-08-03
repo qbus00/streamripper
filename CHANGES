@@ -1,3 +1,11 @@
+New for 3.3.1-qbus
+------------------------------------
+* Fix a crash (SIGSEGV) that stopped HTTPS HLS rips from saving on some
+  platforms (notably x86_64 musl / Synology).  hls_http_get left its HSOCKET
+  uninitialized, so socklib_open's deferred TLS-free ran SSL_free() on stack
+  garbage on the first connection.  The handle is now zeroed first.  Worked by
+  luck on macOS/arm64 where the garbage was NULL; crashed on amd64.
+
 New for 3.3.0-qbus
 ------------------------------------
 * AAC silence detection: track boundaries on aac shoutcast/icecast streams
