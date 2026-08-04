@@ -1,3 +1,14 @@
+New for 3.4.1-qbus
+------------------------------------
+* Fix a slow memory leak on long recordings: the cbuf3 metadata list was
+  append-only (a ~2KB entry per ICY metadata event, freed only at exit), so
+  memory grew for the whole rip.  Entries are now pruned as the ring buffer
+  recycles the audio they reference; RSS stays flat.
+* Fix the -k (skip first N tracks) status display showing "ripping" instead of
+  "skipping" for the first skipped track.
+* Remove leftover wstreamripper (Winamp plugin) prefs code, unused since the
+  plugin was dropped.
+
 New for 3.4.0-qbus
 ------------------------------------
 * FLAC streams are now supported.  Native FLAC (Content-Type audio/flac,
