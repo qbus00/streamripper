@@ -27,13 +27,9 @@ ENDIF (NOT CMAKE_BUILD_TYPE)
 ##-----------------------------------------------------------------------------
 ##  Include files
 ##-----------------------------------------------------------------------------
-INCLUDE (CheckFunctionExists)
-INCLUDE (CheckLibraryExists)
-INCLUDE (FindPkgConfig)
-INCLUDE (FindOpenGL)  # Why?
-
-# http://www.cmake.org/pipermail/cmake/2008-December/025886.html
-INCLUDE (InstallRequiredSystemLibraries)
+INCLUDE (CheckFunctionExists)   # used by cmake/SR_FindSockets.cmake
+INCLUDE (CheckLibraryExists)    # used by cmake/SR_FindSockets.cmake
+INCLUDE (FindPkgConfig)         # PKG_CHECK_MODULES for glib-2.0
 
 
 ##-----------------------------------------------------------------------------
