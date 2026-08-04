@@ -252,8 +252,10 @@ ripstream_mp3_start_track (RIP_MANAGER_INFO* rmi, Writer *writer)
         return rc;
     }
 
-    /* Write ID3V2 */
-    if (GET_ADD_ID3V2(rmi->prefs->flags)) {
+    /* Write ID3V2 (mp3 tag format; never prepend it to FLAC, which would
+       corrupt the file -- decoders expect fLaC/OggS at the start). */
+    if (GET_ADD_ID3V2(rmi->prefs->flags)
+	&& rmi->http_info.content_type != CONTENT_TYPE_FLAC) {
 	int i;
 	char bigbuf[HEADER_SIZE] = "";
 	int header_size = HEADER_SIZE;
@@ -602,8 +604,9 @@ ripstream_mp3_end_track (RIP_MANAGER_INFO* rmi,
 {
     error_code rc;
 
-    /* Add id3v1 if requested */
-    if (GET_ADD_ID3V1(rmi->prefs->flags)) {
+    /* Add id3v1 if requested (never for FLAC -- see the ID3V2 note above). */
+    if (GET_ADD_ID3V1(rmi->prefs->flags)
+	&& rmi->http_info.content_type != CONTENT_TYPE_FLAC) {
 	ID3V1Tag id3v1;
 	memset (&id3v1, '\000',sizeof(id3v1));
 	strncpy (id3v1.tag, "TAG", strlen("TAG"));

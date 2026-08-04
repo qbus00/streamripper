@@ -473,6 +473,58 @@ socklib_recvall (RIP_MANAGER_INFO* rmi, HSOCKET *socket_handle,
     return read;
 }
 
+/* Peek at up to 'size' bytes of pending stream data WITHOUT consuming them, so
+   a subsequent read still sees them.  Used to sniff the codec of an Ogg stream
+   (Vorbis vs FLAC) before choosing a ripper.  Returns the number of bytes
+   peeked (may be less than 'size'), or < 0 on error.  Waits up to 'timeout'
+   seconds for the first bytes to arrive. */
+int
+socklib_peek (RIP_MANAGER_INFO* rmi, HSOCKET *socket_handle,
+	      char* buffer, int size, int timeout)
+{
+    int ret;
+
+    if (socket_handle->closed)
+	return SR_ERROR_SOCKET_CLOSED;
+
+#if defined(HAVE_OPENSSL)
+    if (socket_handle->ssl) {
+	/* SSL_peek needs a completed handshake and may need to read a record
+	   first; loop on WANT_READ/WANT_WRITE. */
+	for (;;) {
+	    ret = SSL_peek ((SSL *) socket_handle->ssl, buffer, size);
+	    if (ret > 0)
+		return ret;
+	    {
+		int ssl_err = SSL_get_error ((SSL *) socket_handle->ssl, ret);
+		if (ssl_err == SSL_ERROR_WANT_READ
+		    || ssl_err == SSL_ERROR_WANT_WRITE)
+		    continue;
+		return (ret == 0) ? 0 : SR_ERROR_RECV_FAILED;
+	    }
+	}
+    }
+#endif
+    (void) rmi;
+    if (timeout > 0) {
+	fd_set fds;
+	struct timeval tv;
+	FD_ZERO (&fds);
+	FD_SET (socket_handle->s, &fds);
+	tv.tv_sec = timeout;
+	tv.tv_usec = 0;
+	ret = select (socket_handle->s + 1, &fds, NULL, NULL, &tv);
+	if (ret == SOCKET_ERROR)
+	    return SR_ERROR_SELECT_FAILED;
+	if (ret == 0)
+	    return SR_ERROR_TIMEOUT;
+    }
+    ret = recv (socket_handle->s, buffer, size, MSG_PEEK);
+    if (ret == SOCKET_ERROR)
+	return SR_ERROR_RECV_FAILED;
+    return ret;
+}
+
 int
 socklib_sendall (HSOCKET *socket_handle, char* buffer, int size)
 {

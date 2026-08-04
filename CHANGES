@@ -1,3 +1,12 @@
+New for 3.4.0-qbus
+------------------------------------
+* FLAC streams are now supported.  Native FLAC (Content-Type audio/flac,
+  audio/x-flac, or a .flac URL) is captured to .flac.  FLAC carried in an Ogg
+  container (Radio Paradise etc.) declares application/ogg like Ogg Vorbis, so
+  the first page is sniffed to tell them apart; Ogg FLAC is captured to .oga
+  and Ogg Vorbis still uses the existing ogg ripper.  FLAC is captured whole
+  (no track splitting, and no ID3 tags -- which would corrupt it).
+
 New for 3.3.1-qbus
 ------------------------------------
 * Fix a crash (SIGSEGV) that stopped HTTPS HLS rips from saving on some

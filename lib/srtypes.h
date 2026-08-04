@@ -110,6 +110,7 @@ typedef int error_code;
 #define CONTENT_TYPE_PLS		6
 #define CONTENT_TYPE_M3U		7
 #define CONTENT_TYPE_HLS		8
+#define CONTENT_TYPE_FLAC		9
 #define CONTENT_TYPE_UNKNOWN		99
 
 /* prefs.hls_mode: how to choose between the HLS and shoutcast paths. */
@@ -247,6 +248,7 @@ enum OverwriteOpt {
 typedef struct SR_HTTP_HEADERst
 {
     int content_type;
+    int flac_in_ogg;		/* CONTENT_TYPE_FLAC carried in an Ogg container */
     int meta_interval;
     int have_icy_name;
     char icy_name[MAX_ICY_STRING];

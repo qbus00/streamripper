@@ -4,7 +4,8 @@ Record shoutcast/icecast radio streams to disk, split into individual tracks.
 
 Streamripper connects to a shoutcast- or icecast-compatible stream, reads the
 inline metadata to detect where each song begins and ends, and saves the tracks
-to your hard drive in the stream's native format (**mp3, aac, nsv, ogg**). It
+to your hard drive in the stream's native format (**mp3, aac, nsv, ogg, flac**).
+It
 can also run a local relay server so you can listen while you record.
 
 > **This fork** adds **HTTPS/TLS support** (modern `https://` stream URLs),
@@ -18,7 +19,8 @@ can also run a local relay server so you can listen while you record.
 
 ## Highlights
 
-- 🎧 Rips mp3 / aac / nsv / ogg streams, split into per-track files
+- 🎧 Rips mp3 / aac / nsv / ogg / **flac** streams, split into per-track files
+  (FLAC is captured whole — native FLAC → `.flac`, FLAC-in-Ogg → `.oga`)
 - 📺 **HLS (`.m3u8`) streams** — polls the playlist and concatenates media
   segments into one file (live or VOD; http and https)
 - 🔒 **`https://` streams supported** — TLS via OpenSSL, opt-in certificate

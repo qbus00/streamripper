@@ -428,6 +428,28 @@ start_ripping (RIP_MANAGER_INFO* rmi)
 	}
     }
 
+    /* An "application/ogg" stream may carry Vorbis or FLAC.  The Vorbis-only
+       ogg ripper produces nothing for Ogg FLAC, so peek the first page (without
+       consuming it) and, if it is FLAC, record it through the generic capture
+       path as CONTENT_TYPE_FLAC instead. */
+    rmi->http_info.flac_in_ogg = 0;
+    if (rmi->http_info.content_type == CONTENT_TYPE_OGG) {
+	char sniff[64];
+	int n = socklib_peek (rmi, &rmi->stream_sock, sniff, sizeof(sniff),
+			      rmi->prefs->timeout);
+	int i;
+	for (i = 0; n > 0 && i + 4 <= n; i++) {
+	    if (sniff[i] == 'F' && sniff[i+1] == 'L'
+		&& sniff[i+2] == 'A' && sniff[i+3] == 'C') {
+		debug_printf ("start_ripping: Ogg stream carries FLAC; "
+			      "using the generic capture path\n");
+		rmi->http_info.content_type = CONTENT_TYPE_FLAC;
+		rmi->http_info.flac_in_ogg = 1;
+		break;
+	    }
+	}
+    }
+
     /* If the icy_name exists, but is empty, set to a bogus name so
        that we can create the directory correctly, etc. */
     if (strlen(rmi->http_info.icy_name) == 0) {

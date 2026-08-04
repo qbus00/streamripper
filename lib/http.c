@@ -597,6 +597,11 @@ http_parse_sc_header (const char *url, char *header, SR_HTTP_HEADER *info)
     else if (strstr(stempbr,"audio/aac")) {
 	info->content_type = CONTENT_TYPE_AAC;
     }
+    else if (strstr(stempbr,"audio/flac") || strstr(stempbr,"audio/x-flac")) {
+	/* Native FLAC.  (FLAC carried in Ogg declares application/ogg and is
+	   detected by sniffing the stream, see start_ripping.) */
+	info->content_type = CONTENT_TYPE_FLAC;
+    }
     else if (strstr(stempbr,"audio/x-scpls")) {
 	info->content_type = CONTENT_TYPE_PLS;
     }
@@ -630,6 +635,9 @@ http_parse_sc_header (const char *url, char *header, SR_HTTP_HEADER *info)
 	    content_type_by_url = CONTENT_TYPE_PLS;
 	} else if (!strcmp (&url_info.path[url_path_len-4], ".m3u")) {
 	    content_type_by_url = CONTENT_TYPE_M3U;
+	} else if (url_path_len >= 5
+		   && !strcmp (&url_info.path[url_path_len-5], ".flac")) {
+	    content_type_by_url = CONTENT_TYPE_FLAC;
 	}
     }
     {
@@ -841,6 +849,11 @@ http_construct_sc_response(SR_HTTP_HEADER *info, char *header, int size, int icy
 	break;
     case CONTENT_TYPE_AAC:
 	sprintf (buf, "Content-Type: audio/aac\r\n");
+	strcat(header, buf);
+	break;
+    case CONTENT_TYPE_FLAC:
+	sprintf (buf, "Content-Type: %s\r\n",
+		 info->flac_in_ogg ? "application/ogg" : "audio/flac");
 	strcat(header, buf);
 	break;
     }

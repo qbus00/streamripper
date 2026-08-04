@@ -178,8 +178,12 @@ filelib_init (RIP_MANAGER_INFO* rmi,
     case CONTENT_TYPE_AAC:
 	fli->m_extension = m_(".aac");
 	break;
+    case CONTENT_TYPE_FLAC:
+	/* Native FLAC -> .flac; FLAC carried in an Ogg container -> .oga. */
+	fli->m_extension = rmi->http_info.flac_in_ogg ? m_(".oga") : m_(".flac");
+	break;
     default:
-	fprintf (stderr, "Error (wrong suggested content type: %d)\n", 
+	fprintf (stderr, "Error (wrong suggested content type: %d)\n",
 		 content_type);
 	return SR_ERROR_PROGRAM_ERROR;
     }
