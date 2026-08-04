@@ -70,8 +70,6 @@ static void prefs_set_stream_prefs_keyfile (STREAM_PREFS* prefs,
 					    STREAM_PREFS* default_prefs, 
 					    char* group);
 
-static void prefs_get_wstreamripper_defaults (WSTREAMRIPPER_PREFS* prefs);
-
 static int prefs_get_string (char* dest, gsize dest_size, char* group, char* key);
 static int prefs_get_int (int *dest, char *group, char *key);
 static int prefs_get_ulong (u_long *dest, char *group, char *key);
@@ -133,7 +131,6 @@ prefs_load (void)
 	u_long tmp_u_long;
 	char overwrite_str[128];
 	char codeset_str[MAX_CODESET_STRING];
-	char localhost_str[SR_MAX_PATH];
 
 	debug_printf ("Updating prefs %d\n", 
 		      string_to_prefs_version (global_prefs.version));
@@ -155,13 +152,6 @@ prefs_load (void)
 	    }
 	    /* Fall through */
 	case PREFS_VERSION_1_63_4:
-	    /* Silently update localhost to 127.0.0.1 */
-	    rc1 = prefs_get_string (localhost_str, SR_MAX_PATH,
-				    "wstreamripper", "localhost");
-	    if (!rc1 || !strcmp (overwrite_str, "localhost")) {
-		prefs_set_string ("wstreamripper", "localhost", "127.0.0.1");
-	    }
-
 	    /* Silently update id3 codeset to UTF-16 for all values*/
 	    prefs_set_string ("stream defaults", "codeset_id3", "UTF-16");
 
@@ -282,64 +272,6 @@ prefs_set_global_prefs (GLOBAL_PREFS *global_prefs)
     prefs_set_string ("sripper", "url", global_prefs->url);
     prefs_set_stream_prefs_keyfile (&global_prefs->stream_prefs, 0, 
 				    "stream defaults");
-}
-
-void
-prefs_get_wstreamripper_prefs (WSTREAMRIPPER_PREFS *prefs)
-{
-    int i, p;
-    char* group = "wstreamripper";
-
-    prefs_get_wstreamripper_defaults (prefs);
-
-    if (!m_key_file) return;
-
-    prefs_get_string (prefs->default_skin, SR_MAX_PATH, group, "default_skin");
-    prefs_get_int (&prefs->m_enabled, group, "enabled");
-    prefs_get_long (&prefs->oldpos_x, group, "window_x");
-    prefs_get_long (&prefs->oldpos_y, group, "window_y");
-    prefs_get_string (prefs->localhost, SR_MAX_PATH, group, "localhost");
-    prefs_get_int (&prefs->m_add_finished_tracks_to_playlist, group, "add_tracks_to_playlist");
-    prefs_get_int (&prefs->m_start_minimized, group, "start_minimized");
-    prefs_get_int (&prefs->use_old_playlist_ret, group, "use_old_playlist_ret");
-
-    /* Get history */
-    for (i = 0, p = 0; i < RIPLIST_LEN; i++) {
-	char profile_name[128];
-	sprintf (profile_name, "riplist%d", i);
-	prefs_get_string (prefs->riplist[p], SR_MAX_PATH, group, profile_name);
-	if (prefs->riplist[p][0]) {
-	    p++;
-	}
-    }
-}
-
-void
-prefs_set_wstreamripper_prefs (WSTREAMRIPPER_PREFS *prefs)
-{
-    int i, p;
-    char* group = "wstreamripper";
-
-    if (!m_key_file) return;
-
-    prefs_set_string (group, "default_skin", prefs->default_skin);
-    prefs_set_integer (group, "enabled", prefs->m_enabled);
-    prefs_set_integer (group, "window_x", prefs->oldpos_x);
-    prefs_set_integer (group, "window_y", prefs->oldpos_y);
-    prefs_set_string (group, "localhost", prefs->localhost);
-    prefs_set_integer (group, "add_tracks_to_playlist", prefs->m_add_finished_tracks_to_playlist);
-    prefs_set_integer (group, "start_minimized", prefs->m_start_minimized);
-    prefs_set_integer (group, "use_old_playlist_ret", prefs->use_old_playlist_ret);
-
-    /* Set history */
-    for (i = 0, p = 0; i < RIPLIST_LEN; i++) {
-	if (prefs->riplist[i][0]) {
-	    char profile_name[128];
-	    sprintf (profile_name, "riplist%d", p);
-	    prefs_set_string (group, profile_name, prefs->riplist[i]);
-	    p++;
-	}
-    }
 }
 
 void
@@ -542,25 +474,6 @@ prefs_get_stream_defaults (STREAM_PREFS* prefs)
     prefs->count_start = 0;
     prefs->overwrite = OVERWRITE_VERSION;
     prefs->ext_cmd[0] = 0;
-}
-
-static void
-prefs_get_wstreamripper_defaults (WSTREAMRIPPER_PREFS* prefs)
-{
-    int i;
-
-    strcpy(prefs->default_skin, DEFAULT_SKINFILE);
-    prefs->m_enabled = 1;
-    prefs->oldpos_x = 0;
-    prefs->oldpos_y = 0;
-    /* Changed from "localhost" to 127.0.0.1 in version 1.64.5 */
-    strcpy (prefs->localhost, "127.0.0.1");
-    prefs->m_add_finished_tracks_to_playlist = 0;
-    prefs->m_start_minimized = 0;
-    prefs->use_old_playlist_ret = 0;
-    for (i = 0; i < RIPLIST_LEN; i++) {
-	prefs->riplist[i][0] = 0;
-    }
 }
 
 /* Return 0 if value not found, 1 if value found */

@@ -455,9 +455,6 @@ struct FILELIB_INFO_struct
     int m_track_no;
 };
 
-
-#define RIPLIST_LEN 10
-
 typedef struct stream_prefs STREAM_PREFS;
 struct stream_prefs
 {
@@ -510,27 +507,12 @@ struct stream_prefs
     CODESET_OPTIONS cs_opt;             // which codeset should i use?
 };
 
-typedef struct wstreamripper_prefs WSTREAMRIPPER_PREFS;
-struct wstreamripper_prefs
-{
-    int		m_add_finished_tracks_to_playlist;
-    int		m_start_minimized;
-    long	oldpos_x;
-    long	oldpos_y;
-    int		m_enabled;
-    char	localhost[MAX_HOST_LEN];	// hostname of 'localhost' 
-    char	default_skin[SR_MAX_PATH];
-    int		use_old_playlist_ret;
-    char	riplist[RIPLIST_LEN][MAX_URL_LEN];
-};
-
 typedef struct global_prefs GLOBAL_PREFS;
 struct global_prefs
 {
     char version[MAX_VERSION_LEN];             // default stream
     char url[MAX_URL_LEN];                     // default stream
     STREAM_PREFS stream_prefs;                 // default prefs for new streams
-    WSTREAMRIPPER_PREFS wstreamripper_prefs;   // prefs for winamp plugin
 };
 
 typedef struct RIP_MANAGER_INFOst RIP_MANAGER_INFO;
