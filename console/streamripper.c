@@ -189,7 +189,12 @@ print_status (RIP_MANAGER_INFO *rmi)
 	    break;
 
 	case RM_STATUS_RIPPING:
-	    if (rmi->track_count < prefs->dropcount) {
+	    /* track_count is incremented when a track starts, so the track being
+	       ripped right now has index (track_count - 1).  A track is dropped
+	       when that index < dropcount (see ripstream.c), so compare against
+	       the current index -- comparing track_count directly mislabelled the
+	       first skipped track as "ripping". */
+	    if ((long) rmi->track_count - 1 < (long) prefs->dropcount) {
 		strcpy(status_str, "skipping...   ");
 	    } else {
 		strcpy(status_str, "ripping...    ");
