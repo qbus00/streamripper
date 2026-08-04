@@ -287,6 +287,18 @@ cbuf3_extract_oldest_node (RIP_MANAGER_INFO *rmi,
     /* Remove the chunk */
     node = g_queue_pop_head_link (cbuf3->buf);
 
+    /* Free any metadata entries that referenced this now-recycled node.
+       metadata_list is otherwise only ever appended to, so without this it
+       grows for the whole rip (a slow leak on long recordings).  Entries are
+       inserted in buffer order, so the ones pointing at the oldest node sit at
+       the head of the list. */
+    while (cbuf3->metadata_list->head) {
+	Metadata *md = (Metadata *) cbuf3->metadata_list->head->data;
+	if (md->m_node != node)
+	    break;
+	free (g_queue_pop_head (cbuf3->metadata_list));
+    }
+
     /* Done */
     threadlib_signal_sem (&cbuf3->sem);
     debug_printf ("cbuf3_extract_oldest_node released cbuf3->sem\n");
