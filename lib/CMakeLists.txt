@@ -23,7 +23,6 @@ SET (STREAMRIPPER_LIB_SRC
 	parse.c parse.h
 	prefs.c prefs.h
 	relaylib.c relaylib.h
-	ripaac.c
 	ripogg.c ripogg.h
 	ripstream.c ripstream.h
 	ripstream_mp3.c ripstream_mp3.h
@@ -36,7 +35,7 @@ SET (STREAMRIPPER_LIB_SRC
 	utf8.c utf8.h
 	wav_output.c wav_output.h
 
-	charmaps.h
+	charmaps.h
 	list.h
 	sr_compat.h
 	srtypes.h
