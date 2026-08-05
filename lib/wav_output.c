@@ -10,33 +10,28 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  *
- * The MP3 decode uses libmad; the scale()/clip logic is adapted from
- * minimad.c (distributed with libmad under the GNU GPL), as used elsewhere
- * in streamripper (see findsep.c).
+ * The MP3 decode uses minimp3 (lieff/minimp3, public domain), which outputs
+ * 16-bit PCM directly.
  */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdint.h>
 
 #include "srtypes.h"
 #include "errors.h"
 #include "wav_output.h"
 #include "debug.h"
 
-/* WAV output is only implemented for the POSIX file-handle (int fd) build;
-   the legacy Win32 build falls back to native output (no --wav). */
-
 #include <unistd.h>
-#include "mad.h"
+#include "minimp3.h"
 
 #define WAV_HEADER_SIZE 44
 
 typedef struct wav_encoder Wav_encoder;
 struct wav_encoder {
     FHANDLE        fp;
-    struct mad_stream stream;
-    struct mad_frame  frame;
-    struct mad_synth  synth;
+    mp3dec_t       mp3d;
     unsigned char *leftover;      /* undecoded mp3 tail carried between writes */
     unsigned long  leftover_len;
     unsigned int   samplerate;
@@ -44,18 +39,6 @@ struct wav_encoder {
     int            have_format;
     unsigned long  data_bytes;    /* PCM bytes written so far */
 };
-
-/* mad_fixed_t -> signed 16-bit, with rounding and clipping. */
-static inline signed int
-scale_16 (mad_fixed_t sample)
-{
-    sample += (1L << (MAD_F_FRACBITS - 16));
-    if (sample >= MAD_F_ONE)
-	sample = MAD_F_ONE - 1;
-    else if (sample < -MAD_F_ONE)
-	sample = -MAD_F_ONE;
-    return sample >> (MAD_F_FRACBITS + 1 - 16);
-}
 
 static void
 put_u32_le (unsigned char *p, unsigned long v)
@@ -119,29 +102,21 @@ patch_header (Wav_encoder *w)
     lseek (w->fp, cur, SEEK_SET);
 }
 
+/* Write one decoded frame's PCM (samples-per-channel, interleaved int16) as
+   little-endian 16-bit samples, regardless of host byte order. */
 static void
-write_pcm_frame (Wav_encoder *w, struct mad_pcm *pcm)
+write_pcm_frame (Wav_encoder *w, const mp3d_sample_t *pcm,
+		 int samples, int channels)
 {
-    unsigned int nchannels = pcm->channels;
-    unsigned int nsamples  = pcm->length;
-    mad_fixed_t const *left = pcm->samples[0];
-    mad_fixed_t const *right = pcm->samples[1];
     /* worst case 1152 samples * 2 ch * 2 bytes */
-    unsigned char out[1152 * 2 * 2];
+    unsigned char out[MINIMP3_MAX_SAMPLES_PER_FRAME * 2];
     unsigned char *p = out;
-    unsigned int i;
+    int n = samples * channels;
+    int i;
 
-    if (nsamples > 1152) nsamples = 1152;   /* defensive */
-
-    for (i = 0; i < nsamples; i++) {
-	signed int s = scale_16 (*left++);
-	put_u16_le (p, (unsigned int) (s & 0xffff));
+    for (i = 0; i < n; i++) {
+	put_u16_le (p, (unsigned int) ((unsigned short) pcm[i]));
 	p += 2;
-	if (nchannels == 2) {
-	    s = scale_16 (*right++);
-	    put_u16_le (p, (unsigned int) (s & 0xffff));
-	    p += 2;
-	}
     }
     if (write (w->fp, out, (size_t) (p - out)) != -1)
 	w->data_bytes += (unsigned long) (p - out);
@@ -152,31 +127,27 @@ write_pcm_frame (Wav_encoder *w, struct mad_pcm *pcm)
 static unsigned long
 decode_buffer (Wav_encoder *w, unsigned char *buf, unsigned long len)
 {
-    unsigned long remain;
+    mp3d_sample_t pcm[MINIMP3_MAX_SAMPLES_PER_FRAME];
+    unsigned long pos = 0;
 
-    mad_stream_buffer (&w->stream, buf, len);
-    for (;;) {
-	if (mad_frame_decode (&w->frame, &w->stream) != 0) {
-	    if (w->stream.error == MAD_ERROR_BUFLEN)
-		break;                        /* need more input */
-	    if (MAD_RECOVERABLE (w->stream.error))
-		continue;                     /* skip bad frame, keep going */
-	    break;                            /* unrecoverable */
+    while (pos < len) {
+	mp3dec_frame_info_t info;
+	int samples = mp3dec_decode_frame (&w->mp3d, buf + pos,
+					   (int)(len - pos), pcm, &info);
+	if (info.frame_bytes == 0)
+	    break;                            /* need more input (partial tail) */
+	if (samples > 0) {
+	    if (!w->have_format) {
+		w->samplerate = (unsigned int) info.hz;
+		w->channels = (unsigned int) (info.channels ? info.channels : 1);
+		w->have_format = 1;
+	    }
+	    write_pcm_frame (w, pcm, samples,
+			     info.channels ? info.channels : 1);
 	}
-	if (!w->have_format) {
-	    w->samplerate = w->frame.header.samplerate;
-	    w->channels = MAD_NCHANNELS (&w->frame.header);
-	    w->have_format = 1;
-	}
-	mad_synth_frame (&w->synth, &w->frame);
-	write_pcm_frame (w, &w->synth.pcm);
+	pos += info.frame_bytes;
     }
-
-    if (w->stream.next_frame)
-	remain = (unsigned long) (buf + len - w->stream.next_frame);
-    else
-	remain = 0;
-    return remain;
+    return len - pos;
 }
 
 error_code
@@ -193,16 +164,11 @@ wav_encoder_open (void **handle, FHANDLE fp)
 	return SR_ERROR_CANT_ALLOC_MEMORY;
 
     w->fp = fp;
-    mad_stream_init (&w->stream);
-    mad_frame_init (&w->frame);
-    mad_synth_init (&w->synth);
+    mp3dec_init (&w->mp3d);
 
-    /* Placeholder header; patched in wav_encoder_close(). */
+    /* Placeholder header; patched as data is written / on close. */
     memset (hdr, 0, sizeof (hdr));
     if (write (fp, hdr, sizeof (hdr)) == -1) {
-	mad_synth_finish (&w->synth);
-	mad_frame_finish (&w->frame);
-	mad_stream_finish (&w->stream);
 	free (w);
 	return SR_ERROR_CANT_WRITE_TO_FILE;
     }
@@ -258,27 +224,14 @@ wav_encoder_close (void *handle, FHANDLE fp)
     if (!w)
 	return SR_SUCCESS;
 
-    /* Flush the final partial frame: libmad needs MAD_BUFFER_GUARD zero
-       bytes appended to decode the last frame in the stream. */
-    if (w->leftover_len > 0) {
-	unsigned long buflen = w->leftover_len + MAD_BUFFER_GUARD;
-	unsigned char *buf = (unsigned char *) malloc (buflen);
-	if (buf) {
-	    memcpy (buf, w->leftover, w->leftover_len);
-	    memset (buf + w->leftover_len, 0, MAD_BUFFER_GUARD);
-	    decode_buffer (w, buf, buflen);
-	    free (buf);
-	}
-    }
+    /* Try to decode any remaining tail as a final frame. */
+    if (w->leftover_len > 0)
+	decode_buffer (w, w->leftover, w->leftover_len);
 
     /* Final header patch now that the format and total size are known. */
     patch_header (w);
 
-    mad_synth_finish (&w->synth);
-    mad_frame_finish (&w->frame);
-    mad_stream_finish (&w->stream);
     free (w->leftover);
     free (w);
     return SR_SUCCESS;
 }
-

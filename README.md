@@ -27,7 +27,7 @@ can also run a local relay server so you can listen while you record.
   verification (`--ssl-verify`)
 - 📻 Built-in relay server so you can listen while ripping
 - ✂️ Silence-based splitpoint detection for clean track boundaries (mp3 via
-  libmad; aac via faad2 when built with it)
+  minimp3; aac via faad2 when built with it)
 - 📦 Builds as a **self-contained static binary** (no runtime dependencies) or
   a normal dynamically-linked binary
 
@@ -159,9 +159,10 @@ cmake --build build -j
 ./build-macos.sh     # -> dist/streamripper-macos-arm64
 ```
 
-Dependencies: glib-2.0 and libmad are required; OpenSSL (for https, on by
-default), libfaad2 (for AAC silence-based splitting) and libogg/libvorbis (for
-ogg) are optional. CMake ≥ 3.5 and
+Dependencies: glib-2.0 is required (MP3 decoding uses the vendored, header-only
+minimp3 — no external library). OpenSSL (for https, on by default), libfaad2
+(for AAC silence-based splitting) and libogg/libvorbis (for ogg) are optional.
+CMake ≥ 3.5 and
 pkg-config are needed to build.
 
 ## Relay server

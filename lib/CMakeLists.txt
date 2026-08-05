@@ -34,6 +34,7 @@ SET (STREAMRIPPER_LIB_SRC
 	track_info.c track_info.h
 	utf8.c utf8.h
 	wav_output.c wav_output.h
+	minimp3_impl.c minimp3.h
 
 	charmaps.h
 	list.h

@@ -15,7 +15,7 @@ There are two kinds of build:
 | Library | Purpose | Required? |
 |---|---|---|
 | glib-2.0 | core data structures | yes |
-| libmad | MP3 decode (silence-based track splitting) | yes |
+| minimp3 | MP3 decode (silence-based track splitting) | bundled (header-only, in-tree — no install) |
 | OpenSSL | TLS for `https://` streams | optional (on by default; `-DWITH_SSL=OFF` to disable) |
 | faad2 | AAC decode for silence-based splitting of aac streams | optional (on by default; `-DWITH_FAAD=OFF` to disable) |
 | libogg + libvorbis | Ogg/Vorbis stream support | optional |
@@ -35,7 +35,7 @@ A C compiler, CMake (>= 3.5), and pkg-config are also needed.
 
 ```sh
 sudo apt install cmake pkg-config build-essential \
-    libglib2.0-dev libmad0-dev libfaad-dev libogg-dev libvorbis-dev libssl-dev
+    libglib2.0-dev libfaad-dev libogg-dev libvorbis-dev libssl-dev
 
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build -j"$(nproc)"
@@ -45,7 +45,7 @@ cmake --build build -j"$(nproc)"
 ### macOS (Apple Silicon or Intel)
 
 ```sh
-brew install cmake pkg-config glib mad faad2 libogg libvorbis openssl@3
+brew install cmake pkg-config glib faad2 libogg libvorbis openssl@3
 
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_PREFIX_PATH="$(brew --prefix)" \
@@ -112,9 +112,9 @@ cache makes it resume.
 
 macOS cannot produce a *fully* static binary (there is no static libSystem), so
 "self-contained" means all third-party libraries are linked statically while the
-always-present macOS system libraries/frameworks stay dynamic. libmad and faad2
-have no static package on Homebrew, so the script builds them from source
-(cached under `macos-build/cache/`).
+always-present macOS system libraries/frameworks stay dynamic. faad2 has no
+static package on Homebrew, so the script builds it from source (cached under
+`macos-build/cache/`).
 
 ```sh
 brew install cmake pkg-config glib pcre2 gettext openssl@3 libogg libvorbis faad2
@@ -141,7 +141,7 @@ code-signed/notarized; clear the flag once with
 
 When cross-relevant, also useful:
 `-DCMAKE_OSX_ARCHITECTURES=arm64`, `-DOPENSSL_ROOT_DIR=...`,
-`-DMAD_LIBRARY=... -DMAD_INCLUDE_DIR=...`.
+`-DFAAD_LIBRARIES=... -DFAAD_INCLUDE_DIR=...`.
 
 ---
 

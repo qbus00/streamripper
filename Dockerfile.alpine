@@ -15,7 +15,8 @@ FROM alpine:3.22 AS build
 
 # NOTE: we deliberately do NOT install libogg-dev/libvorbis-dev: Alpine ships
 # only their shared libs, which would break the fully-static (-static) link.
-# ogg/vorbis (and libmad) are built statically from source below instead.
+# ogg/vorbis are built statically from source below instead.  (MP3 decoding is
+# the vendored header-only minimp3, so libmad is no longer needed.)
 RUN apk add --no-cache \
         build-base \
         cmake \
@@ -32,17 +33,6 @@ RUN apk add --no-cache \
 # cc1 can segfault, so callers pass JOBS=1 for emulated targets; native builds
 # default to all cores.
 ARG JOBS=
-
-# libmad is not packaged in current Alpine, so build it statically from source.
-# Its 2004-era config.guess/config.sub predate aarch64, so refresh them from
-# automake, and drop the obsolete -fforce-mem flag that modern gcc rejects.
-RUN curl -fsSL https://downloads.sourceforge.net/mad/libmad-0.15.1b.tar.gz -o /tmp/libmad.tar.gz \
- && cd /tmp && tar xzf libmad.tar.gz && cd libmad-0.15.1b \
- && cp "$(ls /usr/share/automake-*/config.guess | head -1)" config.guess \
- && cp "$(ls /usr/share/automake-*/config.sub   | head -1)" config.sub \
- && sed -i '/-fforce-mem/d' configure \
- && ./configure --enable-static --disable-shared --prefix=/usr \
- && make -j"${JOBS:-$(nproc)}" && make install
 
 # libogg + libvorbis, static, from source (for ogg/vorbis stream support).
 RUN curl -fsSL https://downloads.xiph.org/releases/ogg/libogg-1.3.6.tar.gz -o /tmp/ogg.tar.gz \

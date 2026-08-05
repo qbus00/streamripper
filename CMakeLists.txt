@@ -119,7 +119,6 @@ ENDIF (UNIX)
 
 SET (CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake" ${CMAKE_MODULE_PATH})
 FIND_PACKAGE (IBERTY)
-FIND_PACKAGE (MAD)
 FIND_PACKAGE (OGG)
 FIND_PACKAGE (VORBIS)
 
@@ -190,9 +189,7 @@ ENDIF (UNIX AND GLIB2_LIBRARY_DIRS)
 
 ## Codec headers may live outside the default search path (e.g. Homebrew's
 ## /opt/homebrew/include on macOS), so add them explicitly when found.
-IF (MAD_INCLUDE_DIR)
-  INCLUDE_DIRECTORIES (BEFORE ${MAD_INCLUDE_DIR})
-ENDIF (MAD_INCLUDE_DIR)
+## (MP3 decoding is via the vendored, header-only minimp3 -- no external lib.)
 IF (OGG_FOUND)
   INCLUDE_DIRECTORIES (BEFORE ${OGG_INCLUDE_DIR})
 ENDIF (OGG_FOUND)
@@ -221,8 +218,7 @@ SET(STREAMRIPPER_SRC
 ##-----------------------------------------------------------------------------
 ##  Targets
 ##-----------------------------------------------------------------------------
-MESSAGE ("MAD_LIBRARIES = ${MAD_LIBRARIES}")
-SET (STREAMRIPPER_LIBS ${MAD_LIBRARIES} ${GLIB2_LIBRARIES} ${MATH_LIB})
+SET (STREAMRIPPER_LIBS ${GLIB2_LIBRARIES} ${MATH_LIB})
 
 IF (SEMAPHORE_LIBRARIES)
   SET (STREAMRIPPER_LIBS ${STREAMRIPPER_LIBS} ${SEMAPHORE_LIBRARIES})

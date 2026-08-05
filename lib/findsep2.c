@@ -1,5 +1,5 @@
-/* findsep.c
- * library routines for find silent points in mp3 data
+/* findsep2.c
+ * library routines for finding silent points in mp3 data (the --xs2 variant)
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -15,29 +15,22 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  *
- * Portions are adapted from minimad.c, included with the 
- * libmad library, distributed under the GNU General Public License.
- * Copyright (C) 2000-2004 Underbit Technologies, Inc.
+ * MP3 decoding uses minimp3 (lieff/minimp3, public domain); the silence
+ * search itself is unchanged from the original libmad-based implementation.
  */
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 #include <math.h>
-#include <stdlib.h>
-#include <math.h>
 #include <assert.h>
-#include "mad.h"
+#include <stdint.h>
+#include "minimp3.h"
 #include "findsep.h"
 #include "srtypes.h"
 #include "debug.h"
 #include "list.h"
 
 #define MAX_RMS_SILENCE		32767 //max short
-#define READSIZE	2000
-// #define READSIZE	1000
-
-/* Uncomment to dump an mp3 of the search window. */
-//   #define MAKE_DUMP_MP3 1
 
 typedef struct FRAME_LIST_struct FRAME_LIST;
 struct FRAME_LIST_struct
@@ -58,7 +51,6 @@ typedef struct DECODE_STRUCTst
 {
     unsigned char* mpgbuf;
     long  mpgsize;
-    long  mpgpos;
     long len_to_sw_ms;
     long searchwindow_ms;
     long  silence_ms;
@@ -76,17 +68,6 @@ typedef struct DECODE_STRUCTst
     MIN_POS* min_maxvolume_buffer;
 } DECODE_STRUCT;
 
-typedef struct GET_BITRATE_STRUCTst
-{
-    unsigned long bitrate;
-    unsigned char* mpgbuf;
-    long mpgsize;
-} GET_BITRATE_STRUCT;
-
-/*****************************************************************************
- * Public functions
- *****************************************************************************/
-
 /*****************************************************************************
  * Private functions
  *****************************************************************************/
@@ -94,21 +75,8 @@ static void apply_padding (DECODE_STRUCT* ds, unsigned long silsplit,
 			   long padding1, long padding2,
 			   u_long* pos1, u_long* pos2);
 static void free_frame_list (DECODE_STRUCT* ds);
-static enum mad_flow input(void *data, struct mad_stream *ms);
 static void search_for_silence(DECODE_STRUCT *ds, unsigned short vol);
-static signed int scale(mad_fixed_t sample);
-static enum mad_flow output(void *data, struct mad_header const *header,
-			    struct mad_pcm *pcm);
-static enum mad_flow filter (void *data, struct mad_stream const *ms,
-			     struct mad_frame *frame);
-static enum mad_flow error(void *data, struct mad_stream *ms, 
-			   struct mad_frame *frame);
-static enum mad_flow header(void *data, struct mad_header const *pheader);
-
-
-/*****************************************************************************
- * Private Vars
- *****************************************************************************/
+static void init_maxvolume_buffer(DECODE_STRUCT *ds);
 
 /*****************************************************************************
  * Functions
@@ -126,15 +94,16 @@ findsep_silence_2 (const char* mpgbuf,
 		 )
 {
     DECODE_STRUCT ds;
-    struct mad_decoder decoder;
+    mp3dec_t mp3d;
+    mp3d_sample_t pcm[MINIMP3_MAX_SAMPLES_PER_FRAME];
+    long pos = 0;
     int bestsil;
     int i;
     double delta = 1;
-    
+
     ds.mpgbuf = (unsigned char*)mpgbuf;
     ds.mpgsize = mpgsize;
     ds.pcmpos = 0;
-    ds.mpgpos= 0;
     ds.samplerate = 0;
     ds.prev_sample = 0;
     ds.len_to_sw_ms = len_to_sw;
@@ -149,35 +118,69 @@ findsep_silence_2 (const char* mpgbuf,
 
     debug_printf ("FINDSEP 2: %p -> %p (%d)\n", mpgbuf, mpgbuf+mpgsize, mpgsize);
 
-#if defined (MAKE_DUMP_MP3)
-    {
-	FILE* fp = fopen("dump.mp3", "wb");
-	fwrite(mpgbuf, mpgsize, 1, fp);
-	fclose(fp);
-    }
-#endif
+    /* Decode the mp3 to PCM frame by frame (minimp3) and feed the silence
+       search.  The maxvolume tree is initialized once the sample rate is known
+       (first decoded frame). */
+    mp3dec_init (&mp3d);
+    while (pos < mpgsize) {
+	mp3dec_frame_info_t info;
+	int samples = mp3dec_decode_frame (&mp3d,
+	    (const uint8_t*) mpgbuf + pos, (int)(mpgsize - pos), pcm, &info);
+	if (info.frame_bytes == 0)
+	    break;
+	if (samples > 0) {
+	    long framepos = pos + info.frame_offset;
+	    int ch = info.channels ? info.channels : 1;
+	    int j;
+	    FRAME_LIST* fl;
 
-    /* Run decoder */
-    mad_decoder_init(&decoder, &ds,
-		     input /* input */,
-		     header/* header */,
-		     filter /* filter */,
-		     output /* output */,
-		     error /* error */,
-		     NULL /* message */);
-    (void) mad_decoder_run(&decoder, MAD_DECODER_MODE_SYNC);
-    mad_decoder_finish(&decoder);
+	    if (!ds.samplerate) {
+		ds.samplerate = info.hz;
+		ds.len_to_sw_start_samp = ds.len_to_sw_ms * (ds.samplerate/1000);
+		ds.len_to_sw_end_samp = (ds.len_to_sw_ms + ds.searchwindow_ms)
+		    * (ds.samplerate/1000);
+		init_maxvolume_buffer (&ds);   /* also sets silence_samples */
+		debug_printf ("Setting samplerate: %ld\n", ds.samplerate);
+	    }
+
+	    fl = (FRAME_LIST*) malloc (sizeof(FRAME_LIST));
+	    fl->m_framepos = ds.mpgbuf + framepos;
+	    fl->m_samples = samples;
+	    fl->m_pcmpos = ds.pcmpos;
+	    list_add_tail (&(fl->m_list), &(ds.frame_list));
+
+	    for (j = 0; j < samples; j++) {
+		short s = (ch >= 2)
+		    ? (short) (((int) pcm[j*ch] + (int) pcm[j*ch + 1]) / 2)
+		    : pcm[j*ch];
+		double v = (double) ds.prev_sample * ds.prev_sample
+			 + (double) s * s;
+		v = sqrt (v / 2);
+		if (ds.pcmpos > ds.len_to_sw_start_samp
+		    && ds.pcmpos < ds.len_to_sw_end_samp) {
+		    search_for_silence (&ds, (unsigned short) v);
+		}
+		ds.pcmpos++;
+		ds.prev_sample = s;
+	    }
+	}
+	pos += info.frame_bytes;
+    }
 
     debug_printf ("total length:    %d\n", ds.pcmpos);
-    debug_printf ("silence_length:  %d ms\n", ds.silence_ms);
     debug_printf ("silence_samples: %d\n", ds.silence_samples);
 
-    /* Search through siltrackers to find minimum volume point */
-    assert(ds.mpgsize != 0);
+    /* If nothing decoded, fall back to the middle of the buffer. */
+    if (ds.frame_list.next == &ds.frame_list) {
+	*pos1 = *pos2 = ds.mpgsize / 2;
+	free (ds.maxvolume_buffer);
+	free (ds.min_maxvolume_buffer);
+	return SR_SUCCESS;
+    }
 
-    /* Start with the highest silence-length */
+    /* Search through siltrackers to find minimum volume point.  Start with
+       the highest silence-length. */
     bestsil = 0;
-
     for (i = 1; i <= ds.max_search_depth; ++i)
     {
         unsigned long current = ds.min_maxvolume_buffer[bestsil].volume;
@@ -222,7 +225,7 @@ apply_padding (DECODE_STRUCT* ds,
 	       unsigned long silsplit,
 	       long padding1,
 	       long padding2,
-	       u_long* pos1, 
+	       u_long* pos1,
 	       u_long* pos2
 	       )
 {
@@ -255,13 +258,13 @@ apply_padding (DECODE_STRUCT* ds,
 	}
     }
     debug_printf ("pos1, pos2 = %d,%d (%d) (%02x%02x)\n",
-		  *pos1, *pos2, 
-		  *pos1 - *pos2, 
-		  ds->mpgbuf[*pos2], 
+		  *pos1, *pos2,
+		  *pos1 - *pos2,
+		  ds->mpgbuf[*pos2],
 		  ds->mpgbuf[*pos2+1]);
 }
 
-static void 
+static void
 free_frame_list (DECODE_STRUCT* ds)
 {
     FRAME_LIST *pos, *n;
@@ -271,60 +274,6 @@ free_frame_list (DECODE_STRUCT* ds)
 	list_del (&(pos->m_list));
 	free (pos);
     }
-}
-
-static enum mad_flow
-input(void *data, struct mad_stream *ms)
-{
-    DECODE_STRUCT *ds = (DECODE_STRUCT *)data;
-    long frameoffset = 0;
-    long espnextpos = ds->mpgpos+READSIZE;
-
-    /* GCS FIX: This trims the last READSIZE from consideration */
-    if (espnextpos > ds->mpgsize) {
-	return MAD_FLOW_STOP;
-    }
-
-    if (ms->next_frame) {
-	frameoffset = &(ds->mpgbuf[ds->mpgpos]) - ms->next_frame;
-        /* GCS July 8, 2004
-	       This is the famous frameoffset != READSIZE bug.
-	       What appears to be happening is libmad is not syncing 
-	       properly on the broken initial frame.  Therefore, 
-	       if there is no header yet (hence no ds->samplerate),
-	       we'll nudge along the buffer to try to resync.
-         */
-	if (frameoffset == READSIZE) {
-	    if (!ds->samplerate) {
-		frameoffset--;
-	    } else {
-		FILE* fp;
-		debug_printf ("%p | %p | %p | %p | %d\n",
-		    ds->mpgbuf, ds->mpgpos, &(ds->mpgbuf[ds->mpgpos]), 
-		    ms->next_frame, frameoffset);
-    		fprintf (stderr, "ERROR: frameoffset != READSIZE\n");
-		debug_printf ("ERROR: frameoffset != READSIZE\n");
-		fp = fopen ("gcs1.txt","w");
-		fwrite(ds->mpgbuf,1,ds->mpgsize,fp);
-		fclose(fp);
-		exit (-1);
-	    }
-	}
-    }
-    debug_printf ("%p | %p | %p |< %p | %p >| %d\n",
-		  ds->mpgbuf, 
-		  ds->mpgpos, 
-		  &(ds->mpgbuf[ds->mpgpos]), 
-		  ms->this_frame, 
-		  ms->next_frame, 
-		  frameoffset);
-
-    mad_stream_buffer (ms, (const unsigned char*)
-		       (ds->mpgbuf+ds->mpgpos)-frameoffset, 
-		       READSIZE);
-    ds->mpgpos += READSIZE - frameoffset;
-
-    return MAD_FLOW_CONTINUE;
 }
 
 static void
@@ -401,101 +350,6 @@ search_for_silence (DECODE_STRUCT *ds, unsigned short vol)
     }
 }
 
-static signed int
-scale(mad_fixed_t sample)
-{
-    /* round */
-    sample += (1L << (MAD_F_FRACBITS - 16));
-
-    /* clip */
-    if (sample >= MAD_F_ONE)
-	sample = MAD_F_ONE - 1;
-    else if (sample < -MAD_F_ONE)
-	sample = -MAD_F_ONE;
-
-    /* quantize */
-    return sample >> (MAD_F_FRACBITS + 1 - 16);
-}
-
-static enum mad_flow 
-filter (void *data, struct mad_stream const *ms, struct mad_frame *frame)
-{
-    DECODE_STRUCT *ds = (DECODE_STRUCT *)data;
-    FRAME_LIST* fl;
-
-    fl = (FRAME_LIST*) malloc (sizeof(FRAME_LIST));
-    fl->m_framepos = ms->this_frame;
-    fl->m_samples = 0;
-    fl->m_pcmpos = 0;
-    list_add_tail (&(fl->m_list), &(ds->frame_list));
-
-#if defined (commentout)
-    debug_printf ("FILTER: %p (%02x%02x) | %p\n", 
-		  ms->this_frame, 
-		  ms->this_frame[0], 
-		  ms->this_frame[1], 
-		  ms->next_frame);
-#endif
-
-    return MAD_FLOW_CONTINUE;
-}
-
-static enum mad_flow
-output (void *data, struct mad_header const *header,
-	struct mad_pcm *pcm)
-{
-    DECODE_STRUCT *ds = (DECODE_STRUCT *)data;
-    FRAME_LIST *fl;
-    unsigned int nchannels, nsamples;
-    mad_fixed_t const *left_ch, *right_ch;
-    static signed int sample;
-    double v;
-
-    nchannels = pcm->channels;
-    nsamples  = pcm->length;
-    left_ch   = pcm->samples[0];
-    right_ch  = pcm->samples[1];
-
-    /* Get frame entry */
-    fl = list_entry (ds->frame_list.prev, FRAME_LIST, m_list);
-    fl->m_samples = nsamples;
-    fl->m_pcmpos = ds->pcmpos;
-
-    if (ds->pcmpos > ds->len_to_sw_start_samp
-	&& ds->pcmpos < ds->len_to_sw_end_samp) {
-	debug_printf ("* %d\n", ds->pcmpos);
-    } else {
-	debug_printf ("- %d\n", ds->pcmpos);
-    }
-#if defined (commentout)
-#endif
-
-    while(nsamples--) {
-	/* output sample(s) in 16-bit signed little-endian PCM */
-	/* GCS FIX: Does this work on big endian machines??? */
-	sample = (short) scale (*left_ch++);
-	//	fwrite(&sample, sizeof(short), 1, fp);
-
-	if (nchannels == 2) {
-	    // make mono
-	    sample = (sample+scale(*right_ch++))/2;
-	}
-
-	// get the instantanous volume
-	v = (ds->prev_sample*ds->prev_sample)+(sample*sample);
-	v = sqrt(v / 2);
-	if (ds->pcmpos > ds->len_to_sw_start_samp
-	    && ds->pcmpos < ds->len_to_sw_end_samp)
-	{
-	    search_for_silence(ds, (short) v);
-	}
-	ds->pcmpos++;
-	ds->prev_sample = sample;
-    }
-    
-    return MAD_FLOW_CONTINUE;
-}
-
 static unsigned long
 next_power_of_two(long value)
 {
@@ -509,9 +363,14 @@ static void
 init_maxvolume_buffer(DECODE_STRUCT *ds)
 {
     unsigned long buffer_offset = 1;
-    unsigned long temp = ds->silence_samples;
+    unsigned long temp;
     unsigned long depth = 0;
     unsigned long i;
+
+    ds->silence_samples =
+        next_power_of_two(ds->silence_ms * (ds->samplerate/1000));
+
+    temp = ds->silence_samples;
     while (temp > 0) {
         ++depth;
         temp /= 2;
@@ -541,33 +400,3 @@ init_maxvolume_buffer(DECODE_STRUCT *ds)
         ds->min_maxvolume_buffer[i].pos = 0;
     }
 }
-
-static enum 
-mad_flow header(void *data, struct mad_header const *pheader)
-{
-    DECODE_STRUCT *ds = (DECODE_STRUCT *)data;
-    if (!ds->samplerate) {
-	ds->samplerate = pheader->samplerate;
-	ds->silence_samples =
-        next_power_of_two(ds->silence_ms * (ds->samplerate/1000));
-	ds->len_to_sw_start_samp = ds->len_to_sw_ms * (ds->samplerate/1000);
-	ds->len_to_sw_end_samp = (ds->len_to_sw_ms + ds->searchwindow_ms) 
-		* (ds->samplerate/1000);
-	init_maxvolume_buffer(ds);
-	debug_printf ("Setting samplerate: %ld\n",ds->samplerate);
-    }
-    return MAD_FLOW_CONTINUE;
-}
-
-static enum mad_flow
-error(void *data, struct mad_stream *ms, struct mad_frame *frame)
-{
-    if (MAD_RECOVERABLE(ms->error)) {
-	debug_printf("mad error 0x%04x\n", ms->error);
-	return MAD_FLOW_CONTINUE;
-    }
-
-    debug_printf("unrecoverable mad error 0x%04x\n", ms->error);
-    return MAD_FLOW_BREAK;
-}
-
