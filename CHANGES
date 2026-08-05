@@ -1,3 +1,11 @@
+New for 3.5.0-qbus
+------------------------------------
+* MP3 decoding now uses minimp3 (a maintained, fuzz-tested, public-domain
+  single-header decoder) instead of libmad, which was abandoned in 2004 and
+  carried unpatched CVEs while decoding untrusted network audio.  No functional
+  change to track splitting, bitrate detection, or --wav; one fewer external
+  dependency to build.
+
 New for 3.4.2-qbus
 ------------------------------------
 * Dependency refresh for the static Linux binaries: Alpine 3.22 (openssl 3.5,
