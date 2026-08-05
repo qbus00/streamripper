@@ -536,7 +536,7 @@ find_sep (RIP_MANAGER_INFO* rmi,
 	rw_size
     );
 
-    /* Which content types can we scan for silence?  mp3 always (libmad); aac
+    /* Which content types can we scan for silence?  mp3 always (minimp3); aac
        only when built with faad2. */
     {
 	int can_split = (rmi->http_info.content_type == CONTENT_TYPE_MP3);
