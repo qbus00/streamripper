@@ -585,12 +585,6 @@ http_parse_sc_header (const char *url, char *header, SR_HTTP_HEADER *info)
     else if (strstr(stempbr,"audio/mpeg")) {
 	info->content_type = CONTENT_TYPE_MP3;
     }
-    else if (strstr(stempbr,"video/nsv")) {
-	info->content_type = CONTENT_TYPE_NSV;
-    }
-    else if (strstr(stempbr,"misc/ultravox")) {
-	info->content_type = CONTENT_TYPE_ULTRAVOX;
-    }
     else if (strstr(stempbr,"application/ogg")) {
 	info->content_type = CONTENT_TYPE_OGG;
     }
@@ -629,8 +623,6 @@ http_parse_sc_header (const char *url, char *header, SR_HTTP_HEADER *info)
 	    content_type_by_url = CONTENT_TYPE_OGG;
 	} else if (!strcmp (&url_info.path[url_path_len-4], ".mp3")) {
 	    content_type_by_url = CONTENT_TYPE_MP3;
-	} else if (!strcmp (&url_info.path[url_path_len-4], ".nsv")) {
-	    content_type_by_url = CONTENT_TYPE_NSV;
 	} else if (!strcmp (&url_info.path[url_path_len-4], ".pls")) {
 	    content_type_by_url = CONTENT_TYPE_PLS;
 	} else if (!strcmp (&url_info.path[url_path_len-4], ".m3u")) {
@@ -835,16 +827,8 @@ http_construct_sc_response(SR_HTTP_HEADER *info, char *header, int size, int icy
 	sprintf (buf, "Content-Type: audio/mpeg\r\n");
 	strcat(header, buf);
 	break;
-    case CONTENT_TYPE_NSV:
-	sprintf (buf, "Content-Type: video/nsv\r\n");
-	strcat(header, buf);
-	break;
     case CONTENT_TYPE_OGG:
 	sprintf (buf, "Content-Type: application/ogg\r\n");
-	strcat(header, buf);
-	break;
-    case CONTENT_TYPE_ULTRAVOX:
-	sprintf (buf, "Content-Type: misc/ultravox\r\n");
 	strcat(header, buf);
 	break;
     case CONTENT_TYPE_AAC:

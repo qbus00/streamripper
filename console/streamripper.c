@@ -316,7 +316,7 @@ print_usage (FILE* stream)
     fprintf(stream, "TLS opts (for https:// stream URLs):\n");
     fprintf(stream, "      --ssl-verify    - Verify the server's TLS certificate\n");
     fprintf(stream, "      --no-ssl-verify - Don't verify the TLS certificate (this is the default)\n");
-    fprintf(stream, "ID3 opts (mp3/aac/nsv):  [The default behavior is adding ID3V2.3 only]\n");
+    fprintf(stream, "ID3 opts (mp3/aac):  [The default behavior is adding ID3V2.3 only]\n");
     fprintf(stream, "      -i                           - Don't add any ID3 tags to output file\n");
     fprintf(stream, "      --with-id3v1                 - Add ID3V1 tags to output file\n");
     fprintf(stream, "      --without-id3v2              - Don't add ID3V2 tags to output file\n");

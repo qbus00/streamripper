@@ -1,3 +1,15 @@
+New for 3.7.0-qbus
+------------------------------------
+* Removed all support for the NSV and Ultravox stream formats.  These were
+  dead Winamp/SHOUTcast-era container types (NSV video and the Ultravox
+  transport): no modern station serves them, streamripper only ever captured
+  them as opaque .nsv blobs (no metadata parsing, no splitting), and they
+  cluttered the content-type detection, relay, and filename paths.  The
+  CONTENT_TYPE_NSV and CONTENT_TYPE_ULTRAVOX types, their detection branches
+  (video/nsv, misc/ultravox, .nsv URLs), the relay Content-Type cases, and the
+  ";stream.nsv" relay documentation are all gone.  mp3/aac/ogg/flac are
+  unaffected.
+
 New for 3.6.0-qbus
 ------------------------------------
 * --wav now works for aac (via faad2) and ogg-vorbis (via libvorbis) streams,

@@ -101,11 +101,9 @@ typedef unsigned short u_short;
 /* Streamripper internal error codes */
 typedef int error_code;
 
-/* Different types of streams */
+/* Different types of streams (2 and 4 were NSV and Ultravox, removed) */
 #define CONTENT_TYPE_MP3		1
-#define CONTENT_TYPE_NSV		2
 #define CONTENT_TYPE_OGG    		3
-#define CONTENT_TYPE_ULTRAVOX		4
 #define CONTENT_TYPE_AAC		5
 #define CONTENT_TYPE_PLS		6
 #define CONTENT_TYPE_M3U		7
@@ -331,7 +329,7 @@ struct cbuf3 {
     GQueue      *ogg_page_refs;   /**< List of pointers to ogg pages */
     GList       *written_page;    /**< Most recently written page */
 
-    /* MP3/AAC/NSV stuff */
+    /* MP3/AAC stuff */
     GQueue      *metadata_list;   /**< List of all metadata */
 };
 

@@ -172,10 +172,6 @@ filelib_init (RIP_MANAGER_INFO* rmi,
 	    fli->m_extension = m_(".mp3");
 	}
 	break;
-    case CONTENT_TYPE_NSV:
-    case CONTENT_TYPE_ULTRAVOX:
-	fli->m_extension = m_(".nsv");
-	break;
     case CONTENT_TYPE_OGG:
 #if OGG_VORBIS_FOUND
 	if (rmi->prefs->wav_output && do_individual_tracks) {
