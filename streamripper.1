@@ -385,6 +385,20 @@ However, if you are ripping an ogg stream, you usually need to tell the player t
   http://localhost:8000/\&.ogg
 .fi
 .RE
+.SH "FORMAT SUPPORT"
+Streamripper records mp3, aac, ogg (Vorbis), and flac streams, plus HLS (\&.m3u8) as a transport\&. What each format supports differs\&.
+.PP
+\fBmp3\fR \- full support: track splitting from the ICY metadata, silence\-based splitpoint refinement (\-\-xs and \-\-xs2, decoded with minimp3), decode to WAV (\-\-wav), ID3 tags, and cue sheets\&.
+.PP
+\fBaac\fR \- as mp3, except that \-\-xs2\'s max\-volume tree search is mp3\-only (aac uses the standard silence search); silence detection and \-\-wav require a build with faad2\&.
+.PP
+\fBogg\fR \- Vorbis audio; tracks are split on Ogg logical\-stream boundaries (no silence search and no cue sheet); \-\-wav works when built with libvorbis; tags are Vorbis comments rather than ID3\&.
+.PP
+\fBflac\fR \- captured whole as a single file (native FLAC as \&.flac, FLAC carried in an Ogg container as \&.oga); there is no track splitting, silence search, \-\-wav, ID3, or cue sheet for FLAC\&.
+.PP
+\fBhls\fR \- a transport, not a codec: the media segments are polled and concatenated into one file\&. This is single\-file only, so the pipeline options (\-\-wav, \-\-no\-cue, \-A, \-i, \-s, the \-\-xs options, and the relay \-r) do not apply; only \-d, \-a, \-l, \-u, \-m, \-\-ssl\-verify, \-\-hls\-variant, and \-\-hls/\-\-no\-hls affect an HLS rip\&.
+.PP
+The relay server (\-r) works for mp3, aac, ogg, and flac\&.
 .SH "SPLITPOINT DETECTION"
 Streamripper automatically splits tracks based on detection of a silent near the meta interval where the track changes\&. However, this method is imperfect, and sometimes the track splitting occurs is too early or too late\&. These options will fine tune the track splitting capabilities for streams that use cross\-fading, which causes streamripper\'s automatic silence detection routine to fail\&.
 .sp

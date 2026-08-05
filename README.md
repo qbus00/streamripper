@@ -97,6 +97,39 @@ Notes:
 - https **through an http proxy** (`-p`) is supported via CONNECT tunneling
   (including `Proxy-Authorization` when the proxy URL has `user:pass@`).
 
+## Format support
+
+Streamripper records **mp3, aac, ogg (Vorbis)** and **flac** streams, plus
+**HLS** (`.m3u8`) as a transport. What each format supports differs — FLAC is
+captured whole (no splitting/tagging), and HLS is single-file and codec-blind:
+
+| Capability | mp3 | aac | ogg | flac | hls |
+|---|:--:|:--:|:--:|:--:|:--:|
+| Track splitting (ICY metadata) | ✅ | ✅ | ✅¹ | ❌² | ❌³ |
+| Silence splitpoint refine (`--xs`) | ✅ | ✅ | ❌ | ❌ | ❌ |
+| Max-volume search (`--xs2`) | ✅ | ⚠️⁴ | ❌ | ❌ | ❌ |
+| Decode to WAV (`--wav`) | ✅ | ✅⁵ | ✅⁶ | ❌⁷ | ❌ |
+| ID3 tags (`-i`, `--with-id3v1`, …) | ✅ | ✅ | ❌⁸ | ❌ | ❌ |
+| Cue sheet (`--no-cue` to disable) | ✅ | ✅ | ❌ | ❌ | ❌ |
+| Relay server (`-r`, `-R`) | ✅ | ✅ | ✅ | ✅ | ❌ |
+| `--hls-variant` | — | — | — | — | ✅ |
+
+<sub>¹ splits on Ogg logical-stream boundaries, not silence. ² native FLAC →
+`.flac`, FLAC-in-Ogg → `.oga`, always captured as a single file. ³ segments are
+concatenated into one file. ⁴ `--xs2`'s tree search is mp3-only; aac falls back
+to the standard silence search. ⁵ needs a build with faad2. ⁶ needs a build with
+libvorbis. ⁷ no libFLAC is linked. ⁸ Ogg uses Vorbis comments, not ID3.</sub>
+
+Decoders: MP3 via the vendored header-only **minimp3** (no external lib); AAC via
+**faad2**, Ogg Vorbis via **libvorbis** (both optional at build time). `--wav`
+*decodes* to 16-bit PCM — it decompresses, it does not re-encode.
+
+The options that apply to **any** http/https stream (mp3/aac/ogg/flac) — `-d`,
+`-s`, `-a`, `-A`, `-l`, `-u`, `-m`, `-o`, `-r`/`-R`, `-p`, `--http10`,
+`--ssl-verify` — are listed below. An **HLS** rip is the exception: only `-d`,
+`-a`, `-l`, `-u`, `-m`, `--ssl-verify`, `--hls-variant`, and `--hls`/`--no-hls`
+apply; the rest are silently ignored.
+
 ## Common options
 
 | Option | Description |
