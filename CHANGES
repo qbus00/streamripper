@@ -1,3 +1,10 @@
+New for 3.6.0-qbus
+------------------------------------
+* --wav now works for aac (via faad2) and ogg-vorbis (via libvorbis) streams,
+  not just mp3 -- decoding tracks to 16-bit PCM WAV using the decoders already
+  linked in.  Individual-tracks mode only, as before.  (FLAC is not covered;
+  no libFLAC.)
+
 New for 3.5.0-qbus
 ------------------------------------
 * MP3 decoding now uses minimp3 (a maintained, fuzz-tested, public-domain
