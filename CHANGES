@@ -1,3 +1,14 @@
+New for 3.7.1-qbus
+------------------------------------
+* FLAC is now guaranteed to be captured whole.  Previously "captured whole"
+  was only incidental -- it held because FLAC streams don't carry per-track
+  ICY metadata.  A FLAC stream that did send ICY metadata would have triggered
+  a track change and been cut at an arbitrary byte midpoint (there is no FLAC
+  silence decoder), producing corrupt, unplayable fragments.  The track-change
+  detector now returns early for CONTENT_TYPE_FLAC, so FLAC is always written
+  as a single file regardless of what metadata the server sends.  No change for
+  any other format.
+
 New for 3.7.0-qbus
 ------------------------------------
 * Removed all support for the NSV and Ultravox stream formats.  These were

@@ -416,9 +416,19 @@ ripstream_mp3_check_for_track_change (RIP_MANAGER_INFO* rmi)
     error_code rc;
     GQueue *write_list = rmi->cbuf3.write_list;
 
-    debug_printf ("rmi->current_track.have_track_info = %d\n", 
+    /* FLAC is captured whole -- never split it.  There is no FLAC silence
+       decoder, so a split would fall through to find_sep's arbitrary-midpoint
+       branch and cut the FLAC/Ogg bitstream at a byte boundary, producing
+       corrupt, unplayable fragments.  Real FLAC streams don't carry per-track
+       ICY metadata, but guard explicitly so one that does is still written as
+       a single file rather than shredded. */
+    if (rmi->http_info.content_type == CONTENT_TYPE_FLAC) {
+	return SR_SUCCESS;
+    }
+
+    debug_printf ("rmi->current_track.have_track_info = %d\n",
 		  rmi->current_track.have_track_info);
-    if (rmi->current_track.have_track_info 
+    if (rmi->current_track.have_track_info
 	&& track_info_different (&rmi->old_track, &rmi->current_track)) {
 	/* Set m_find_silence equal to the number of additional blocks 
 	   needed until we can do silence separation. */
