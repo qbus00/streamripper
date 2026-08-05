@@ -110,7 +110,7 @@ captured whole (no splitting/tagging), and HLS is single-file and codec-blind:
 | Max-volume search (`--xs2`) | ✅ | ⚠️⁴ | ❌ | ❌ | ❌ |
 | Decode to WAV (`--wav`) | ✅ | ✅⁵ | ✅⁶ | ❌⁷ | ❌ |
 | ID3 tags (`-i`, `--with-id3v1`, …) | ✅ | ✅ | ❌⁸ | ❌ | ❌ |
-| Cue sheet (`--no-cue` to disable) | ✅ | ✅ | ❌ | ❌ | ❌ |
+| Cue sheet⁹ (`--no-cue` to disable) | ✅ | ✅ | ❌ | ✅¹⁰ | ❌ |
 | Relay server (`-r`, `-R`) | ✅ | ✅ | ✅ | ✅ | ❌ |
 | `--hls-variant` | — | — | — | — | ✅ |
 
@@ -118,7 +118,11 @@ captured whole (no splitting/tagging), and HLS is single-file and codec-blind:
 `.flac`, FLAC-in-Ogg → `.oga`, always captured as a single file. ³ segments are
 concatenated into one file. ⁴ `--xs2`'s tree search is mp3-only; aac falls back
 to the standard silence search. ⁵ needs a build with faad2. ⁶ needs a build with
-libvorbis. ⁷ no libFLAC is linked. ⁸ Ogg uses Vorbis comments, not ID3.</sub>
+libvorbis. ⁷ no libFLAC is linked. ⁸ Ogg uses Vorbis comments, not ID3.
+⁹ a `.cue` is written **only in single-file mode** (`-a`); per-track mode never
+writes one. Ogg is the one format suppressed even in `-a` mode. ¹⁰ FLAC is
+captured whole, so its cue has a single `TRACK 01` entry (no per-song
+splitting).</sub>
 
 Decoders: MP3 via the vendored header-only **minimp3** (no external lib); AAC via
 **faad2**, Ogg Vorbis via **libvorbis** (both optional at build time). `--wav`
