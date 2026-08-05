@@ -447,7 +447,8 @@ struct FILELIB_INFO_struct
     mchar m_cue_name[SR_MAX_PATH];
     mchar m_icy_name[SR_MAX_PATH];
     mchar* m_extension;
-    int m_wav_output;		/* 1 if decoding mp3 tracks to .wav */
+    int m_wav_output;		/* 1 if decoding tracks to .wav */
+    int m_wav_content_type;	/* codec to decode for --wav (CONTENT_TYPE_*) */
     int m_no_cue;		/* 1 to suppress .cue sheet creation */
     BOOL m_do_individual_tracks;
     mchar m_session_datebuf[DATEBUF_LEN];

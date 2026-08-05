@@ -157,13 +157,17 @@ filelib_init (RIP_MANAGER_INFO* rmi,
     remove_trailing_periods (fli->m_stripped_icy_name);
     debug_printf ("  %s\n", fli->m_stripped_icy_name);
 
+    /* --wav: decode tracks to PCM .wav (individual tracks only).  Supported
+       for mp3 (minimp3), and -- when built with the decoder -- aac (faad2) and
+       ogg vorbis (libvorbis).  Otherwise the native format is written. */
     fli->m_wav_output = 0;
+    fli->m_wav_content_type = 0;
     switch (content_type) {
     case CONTENT_TYPE_MP3:
-	/* --wav: decode mp3 tracks to PCM .wav (individual tracks only). */
 	if (rmi->prefs->wav_output && do_individual_tracks) {
 	    fli->m_extension = m_(".wav");
 	    fli->m_wav_output = 1;
+	    fli->m_wav_content_type = CONTENT_TYPE_MP3;
 	} else {
 	    fli->m_extension = m_(".mp3");
 	}
@@ -173,10 +177,24 @@ filelib_init (RIP_MANAGER_INFO* rmi,
 	fli->m_extension = m_(".nsv");
 	break;
     case CONTENT_TYPE_OGG:
-	fli->m_extension = m_(".ogg");
+#if OGG_VORBIS_FOUND
+	if (rmi->prefs->wav_output && do_individual_tracks) {
+	    fli->m_extension = m_(".wav");
+	    fli->m_wav_output = 1;
+	    fli->m_wav_content_type = CONTENT_TYPE_OGG;
+	} else
+#endif
+	    fli->m_extension = m_(".ogg");
 	break;
     case CONTENT_TYPE_AAC:
-	fli->m_extension = m_(".aac");
+#if defined (HAVE_FAAD)
+	if (rmi->prefs->wav_output && do_individual_tracks) {
+	    fli->m_extension = m_(".wav");
+	    fli->m_wav_output = 1;
+	    fli->m_wav_content_type = CONTENT_TYPE_AAC;
+	} else
+#endif
+	    fli->m_extension = m_(".aac");
 	break;
     case CONTENT_TYPE_FLAC:
 	/* Native FLAC -> .flac; FLAC carried in an Ogg container -> .oga. */
@@ -287,10 +305,11 @@ filelib_start (RIP_MANAGER_INFO* rmi, Writer *writer, TRACK_INFO* ti)
 	if (ret != SR_SUCCESS)
 	    return ret;
 	if (fli->m_wav_output) {
-	    ret = wav_encoder_open (&writer->wav, writer->m_file);
+	    ret = wav_encoder_open (&writer->wav, writer->m_file,
+				    fli->m_wav_content_type);
 	    if (ret != SR_SUCCESS) {
 		debug_printf ("wav_encoder_open failed (%d); "
-			      "writing raw mp3 instead\n", ret);
+			      "writing the native format instead\n", ret);
 		writer->wav = NULL;
 	    }
 	}

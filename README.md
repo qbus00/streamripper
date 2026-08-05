@@ -109,7 +109,7 @@ Notes:
 | `-r [[ip:]port]` | Run a relay server (default port 8000) |
 | `-R num` | Max relay clients (`0` = unlimited) |
 | `-u useragent` | Use a custom User-Agent |
-| `--wav` | Decode mp3 tracks and save them as `.wav` files |
+| `--wav` | Decode tracks to `.wav` (mp3; also aac/ogg-vorbis when built with faad2/libvorbis; per-track mode only) |
 | `--no-cue` | Don't write `.cue` sheet files |
 | `--http10` | Use HTTP/1.0 (for servers that mishandle HTTP/1.1) |
 | `--hls` / `--no-hls` | Force / disable HLS handling (override autodetection) |
