@@ -564,6 +564,8 @@ find_sep (RIP_MANAGER_INFO* rmi,
 	} else {
 	    u_long bufsize = rw_size;
 	    char* buf = (char*) malloc (bufsize);
+	    if (!buf)
+	        return SR_ERROR_CANT_ALLOC_MEMORY;
 	    u_long pos1, pos2;
 	    long len_to_sw = rmi->rw_start_to_sw_start;
 	    long window = sp_opt->xs_search_window_1 + sp_opt->xs_search_window_2;

@@ -353,15 +353,6 @@ cbuf3_get_tail (
     out_ptr->offset = cbuf3->chunk_size;
 }
 
-void
-cbuf3_pointer_copy (
-    struct cbuf3_pointer *out_ptr, 
-    struct cbuf3_pointer *in_ptr)
-{
-    out_ptr->node = in_ptr->node;
-    out_ptr->offset = out_ptr->offset;
-}
-
 error_code
 cbuf3_pointer_add (struct cbuf3 *cbuf3, 
 		   struct cbuf3_pointer *out_ptr, 
@@ -420,9 +411,7 @@ cbuf3_pointer_subtract (
     struct cbuf3_pointer *ptr2    /* Input */
 )
 {
-    struct cbuf3_pointer p;
-
-    cbuf3_pointer_copy (&p, ptr1);
+    struct cbuf3_pointer p = *ptr1;
     *diff = 0;
     
     do {
@@ -676,7 +665,6 @@ cbuf3_peek (Cbuf3 *cbuf3,
     cur.node = ptr->node;
     cur.offset = ptr->offset;
     while (len > 0) {
-	u_long this_len;
 	char *chunk = (char*) cur.node->data;
 
 	/* Check for overflow */
@@ -685,11 +673,8 @@ cbuf3_peek (Cbuf3 *cbuf3,
 	}
 
 	/* Compute length to peek from this chunk */
-	if (cur.offset + len > cbuf3->chunk_size) {
-	    this_len = cbuf3->chunk_size - cur.offset;
-	} else {
-	    this_len = len;
-	}
+	u_long const available = cbuf3->chunk_size - cur.offset;
+	u_long const this_len = len < available ? len : available;
 
 	debug_printf ("Copying %d bytes (%d).\n", this_len, len);
 
