@@ -30,6 +30,7 @@ ENDIF (NOT CMAKE_BUILD_TYPE)
 INCLUDE (CheckFunctionExists)   # used by cmake/SR_FindSockets.cmake
 INCLUDE (CheckLibraryExists)    # used by cmake/SR_FindSockets.cmake
 INCLUDE (FindPkgConfig)         # PKG_CHECK_MODULES for glib-2.0
+INCLUDE (GNUInstallDirs)        # CMAKE_INSTALL_<dir> variables
 
 
 ##-----------------------------------------------------------------------------
@@ -273,4 +274,4 @@ ENDIF (APPLE AND NOT CMAKE_VERSION VERSION_LESS 3.18)
 ##-----------------------------------------------------------------------------
 ##  Install
 ##-----------------------------------------------------------------------------
-INSTALL(TARGETS streamripper DESTINATION bin)
+INSTALL(TARGETS streamripper DESTINATION "${CMAKE_INSTALL_BINDIR}")
